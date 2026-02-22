@@ -1,0 +1,21 @@
+*.pyc
+data/*
+*.csv
+*.png
+
+# deep learning
+*.ckpt
+results/*
+!**/default.yaml
+notebooks/best_checkpoint.pth
+tmp/**
+stamp.egg-info/**
+*.mdb
+
+#IDE
+.vscode/**
+dataset/
+moment/
+experiments/
+embeddings/
+temporary/

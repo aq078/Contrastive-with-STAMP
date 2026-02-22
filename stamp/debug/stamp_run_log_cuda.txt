@@ -1,0 +1,66 @@
+dict_keys(['exp_name', 'embedding_model_name', 'embedding_models_dir', 'n_random_seeds', 'training_data_ratio', 'temporal_channel_selection', 'modeling_approach_config', 'embeddings_dir'])
+Starting experiment...
+Starting training for random seed 654...
+Unsupported operator aten::mul encountered 22 time(s)
+Unsupported operator aten::embedding encountered 3 time(s)
+Unsupported operator aten::repeat encountered 1 time(s)
+Unsupported operator aten::repeat_interleave encountered 1 time(s)
+Unsupported operator aten::sum encountered 5 time(s)
+Unsupported operator aten::add encountered 10 time(s)
+Unsupported operator aten::gelu encountered 8 time(s)
+Unsupported operator aten::mean encountered 1 time(s)
+Unsupported operator aten::div encountered 1 time(s)
+Unsupported operator aten::softmax encountered 2 time(s)
+Unsupported operator aten::isnan encountered 1 time(s)
+Unsupported operator aten::where encountered 1 time(s)
+The following submodules of the model were never called during the trace of the graph. They may be unused, or they were accessed by direct calls to .forward() or via other python methods. In the latter case they will have zeros for statistics, though their statistics will still contribute to their parent calling module.
+dropout
+Epoch: 0
+Training...
+SystemError: deallocated bytearray object has exported buffers
+SystemError: deallocated bytearray object has exported buffers
+SystemError: deallocated bytearray object has exported buffers
+SystemError: deallocated bytearray object has exported buffers
+SystemError: deallocated bytearray object has exported buffers
+train_main_loss: 0.5353, val_loss: 0.4730
+train_balanced_acc: 0.5000, val_balanced_acc: 0.5000
+train_cohen_kappa: 0.0000, val_cohen_kappa: 0.0000
+train_weighted_f1: 0.7618, val_weighted_f1: 0.7814
+Val CM:
+[[  0  65]
+ [  0 369]]
+Epoch: 1
+Training...
+SystemError: deallocated bytearray object has exported buffers
+SystemError: deallocated bytearray object has exported buffers
+SystemError: deallocated bytearray object has exported buffers
+SystemError: deallocated bytearray object has exported buffers
+SystemError: deallocated bytearray object has exported buffers
+train_main_loss: 0.5047, val_loss: 0.4786
+train_balanced_acc: 0.5000, val_balanced_acc: 0.5000
+train_cohen_kappa: 0.0000, val_cohen_kappa: 0.0000
+train_weighted_f1: 0.7618, val_weighted_f1: 0.7814
+Val CM:
+[[  0  65]
+ [  0 369]]
+Saving best checkpoint at epoch 1...
+Epoch: 2
+Training...
+SystemError: deallocated bytearray object has exported buffers
+SystemError: deallocated bytearray object has exported buffers
+SystemError: deallocated bytearray object has exported buffers
+SystemError: deallocated bytearray object has exported buffers
+SystemError: deallocated bytearray object has exported buffers
+train_main_loss: 0.5067, val_loss: 0.4719
+train_balanced_acc: 0.5000, val_balanced_acc: 0.5000
+train_cohen_kappa: 0.0000, val_cohen_kappa: 0.0000
+train_weighted_f1: 0.7618, val_weighted_f1: 0.7814
+Val CM:
+[[  0  65]
+ [  0 369]]
+Epoch: 3
+Training...
+SystemError: deallocated bytearray object has exported buffers
+SystemError: deallocated bytearray object has exported buffers
+SystemError: deallocated bytearray object has exported buffers
+SystemError: deallocated bytearray object has exported buffers

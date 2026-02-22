@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/zfsauton2/home/anqix/projects/stamp/scripts/run_embedding_exp_manual.py", line 1, in <module>
+    from stamp.experiments import (
+  File "/zfsauton2/home/anqix/projects/stamp/stamp/experiments.py", line 15, in <module>
+    from stamp.modeling import create_modeling_approach
+  File "/zfsauton2/home/anqix/projects/stamp/stamp/modeling/__init__.py", line 6, in <module>
+    from .stamp_trainer import STAMPModelingApproach
+  File "/zfsauton2/home/anqix/projects/stamp/stamp/modeling/stamp_trainer.py", line 3
+    self.model.train()
+IndentationError: unexpected indent
