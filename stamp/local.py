@@ -25,7 +25,7 @@ class MyLocalConfig(LocalConfig):
             'stress': '/path/to//benchmark_data/stress/processed',
             'tuab': '/path/to/benchmark_data/tuab/processed',
             'tuev': '/path/to/benchmark_data/tuev/processed',
-            'sere': 'dataset/processed_sere/sere_framecomp_world_xyzv_L64_S16.lmdb'
+            'sere': 'dataset/processed_sere/sere_framecomp_world_xyz_L64_S16.lmdb'
 
         }
 

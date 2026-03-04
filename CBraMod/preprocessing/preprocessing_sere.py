@@ -13,7 +13,7 @@ Output:
   - LMDB where each record is a window:
         key = "{E}_pid{pid}_aff{affected}_trial{trial}_w{start}"
         value = pickle({
-            "sample": [L,33,4] float32 (x,y,z,visibility),
+            "sample": [33,3,L] float32 (joints, xyz, time)
             "label":  int 0/1  (aggregated from frame-level comp),
             "meta":   dict
         })
@@ -38,7 +38,7 @@ import pandas as pd
 # =========================
 
 ROOT_DIR = Path("dataset/SERE_dataset_SHAREABLE_skeletons")  # <-- EDIT
-OUT_LMDB = Path("dataset/processed_sere/sere_framecomp_world_xyzv_L64_S16.lmdb")  # <-- EDIT
+OUT_LMDB = Path("dataset/processed_sere/sere_framecomp_world_xyz_L64_S16.lmdb")  # <-- EDIT
 
 WORLD_DIR = ROOT_DIR / "MediaPipe_skeletons" / "WorldLandmarks"
 FRAME_LABEL_DIR = ROOT_DIR / "Labels" / "frame_level" / "compensation"
@@ -191,9 +191,9 @@ def split_pids(pids: List[Any], split: Dict[str, float], seed: int) -> Dict[str,
     return {"train": train, "val": val, "test": test}
 
 
-def normalize_xyzv(X: np.ndarray, eps: float = 1e-6) -> np.ndarray:
+def normalize_xyz(X: np.ndarray, eps: float = 1e-6) -> np.ndarray:
     """
-    X: [T,33,4] (x,y,z,vis).
+    X: [T,33,3] (x,y,z).
     Root-center by hip midpoint, scale by shoulder distance per-frame.
     """
     out = X.astype(np.float32, copy=True)
@@ -246,7 +246,7 @@ def load_worldlandmarks_wide(path: Path) -> pd.DataFrame:
             raise ValueError(f"[world] Missing '{c}' in {path}. Found: {list(df.columns)}")
 
     for j in range(POSE_N):
-        for suf in ["x", "y", "z", "v"]:
+        for suf in ["x", "y", "z"]:
             col = f"{j}{suf}"
             if col not in df.columns:
                 raise ValueError(f"[world] Missing '{col}' in {path}")
@@ -257,14 +257,14 @@ def load_worldlandmarks_wide(path: Path) -> pd.DataFrame:
     return df
 
 
-def build_xyzv_for_frames(df_world: pd.DataFrame, pid: Any, affected: Any, frames: np.ndarray) -> np.ndarray:
+def build_xyz_for_frames(df_world: pd.DataFrame, pid: Any, affected: Any, frames: np.ndarray) -> np.ndarray:
     """
     Align skeleton rows to the provided frame ids.
     Missing frames become NaNs via reindex.
     """
     sub = df_world[(df_world[PID_COL] == pid) & (df_world[AFFECTED_COL] == affected)].copy()
     if sub.empty:
-        return np.zeros((0, POSE_N, 4), dtype=np.float32)
+        return np.zeros((0, POSE_N, 3), dtype=np.float32)
 
     sub = sub.set_index(FRAME_COL, drop=False)
     frames = np.asarray(frames, dtype=int)
@@ -272,12 +272,12 @@ def build_xyzv_for_frames(df_world: pd.DataFrame, pid: Any, affected: Any, frame
     rows = sub.reindex(index=frames, copy=False)  # NaNs where missing
     T = len(rows)
 
-    X = np.zeros((T, POSE_N, 4), dtype=np.float32)
+    X = np.zeros((T, POSE_N, 3), dtype=np.float32)
     for j in range(POSE_N):
         X[:, j, 0] = rows[f"{j}x"].to_numpy(dtype=np.float32)
         X[:, j, 1] = rows[f"{j}y"].to_numpy(dtype=np.float32)
         X[:, j, 2] = rows[f"{j}z"].to_numpy(dtype=np.float32)
-        X[:, j, 3] = rows[f"{j}v"].to_numpy(dtype=np.float32)
+        # X[:, j, 3] = rows[f"{j}v"].to_numpy(dtype=np.float32)
     return X
 
 
@@ -381,12 +381,12 @@ def compute_pid_window_counts() -> dict:
             frames = sub[FRAME_COL].to_numpy(dtype=int)
             y = sub[FRAME_COMP_COL].to_numpy(dtype=np.float32)
 
-            X = build_xyzv_for_frames(wdf, pid, affected, frames)
+            X = build_xyz_for_frames(wdf, pid, affected, frames)
             if X.shape[0] < WINDOW_L:
                 continue
 
             if NORMALIZE:
-                X = normalize_xyzv(X)
+                X = normalize_xyz(X)
 
             T = X.shape[0]
             for start in range(0, T - WINDOW_L + 1, STRIDE):
@@ -504,13 +504,13 @@ def main() -> None:
                 frames = sub[FRAME_COL].to_numpy(dtype=int)
                 y = sub[FRAME_COMP_COL].to_numpy(dtype=np.float32)
 
-                X = build_xyzv_for_frames(wdf, pid, affected, frames)
+                X = build_xyz_for_frames(wdf, pid, affected, frames)
                 if X.shape[0] < WINDOW_L:
                     skipped_trials += 1
                     continue
 
                 if NORMALIZE:
-                    X = normalize_xyzv(X)
+                    X = normalize_xyz(X)
 
                 if pid in pid_split["train"]:
                     split = "train"
@@ -548,12 +548,12 @@ def main() -> None:
                         "agg": AGGREGATION,
                     }
                     ### STAMP COMPAT: reorder sample to (spatial, temporal, seq_len) and add mask ###
-                    # Xw is currently (L, 33, 4) = (frames, joints, features)
-                    # STAMP expects per-sample shape (n_spatial, n_temporal, seq_len) = (33, 4, L)
-                    Xw_st = np.transpose(Xw, (1, 2, 0)).astype(np.float32, copy=False)  # (33,4,L)
+                    # Xw is currently (L, 33, 3) = (frames, joints, features)
+                    # STAMP expects per-sample shape (n_spatial, n_temporal, seq_len) = (33, 3, L)
+                    Xw_st = np.transpose(Xw, (1, 2, 0)).astype(np.float32, copy=False)  # (33,3,L)
 
                     # Optional but recommended: provide an explicit mask so STAMP doesn't infer a broken one.
-                    # Shape (33*4, L) matches "channels x time" after flattening joints/features.
+                    # Shape (33*3, L) matches "channels x time" after flattening joints/features.
                     mask = np.zeros((Xw_st.shape[0] * Xw_st.shape[1], Xw_st.shape[2]), dtype=np.bool_)
                     ### END STAMP COMPAT ###
                     value = pickle.dumps(
