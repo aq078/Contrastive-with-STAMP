@@ -134,11 +134,16 @@ class STAMPModelingApproach(ModelingApproach):
         if self.freeze_backbone:
             for p in self.model.parameters():
                 p.requires_grad = False
+            #also unfreeze MHAP
+            if hasattr(self.model, "multi_head_attention_pooling") and self.model.multi_head_attention_pooling is not None:
+                for p in self.model.multi_head_attention_pooling.parameters():
+                    p.requires_grad = True
+
             if hasattr(self.model, "classifier") and self.model.classifier is not None:
                 for p in self.model.classifier.parameters():
                     p.requires_grad = True
             else:
-                raise ValueError("freeze_backbone=True but model has no classifier to train.")
+                raise ValueError("Model has no classifier to train.")
             #debug---
             trainable = [(n, p.numel()) for n, p in self.model.named_parameters() if p.requires_grad]
             print("Trainable params:")
