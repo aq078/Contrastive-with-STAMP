@@ -7,7 +7,6 @@ local_config = get_local_config()
 
 experiments_dir = local_config.tsfm_experiments_dir
 
-# dataset_names = ['faced', 'mumtaz', 'shu', 'stress', 'physio', 'bciciv2a', 'seedv', 'isruc', 'tuev']
 dataset_names = ['sere']
 
 for dataset_name in dataset_names:
@@ -29,10 +28,12 @@ for dataset_name in dataset_names:
     dropout_rate = 0.3
 
     n_epochs = 50
-    train_batch_size = 64
-    test_batch_size = 64
+    train_batch_size = 16
+    test_batch_size = 16
     min_epoch = 0
-
+    problem_type = "multiclass"
+    n_classes = 2
+    device = "cuda:1"
     # Hyperparameter grids
     D_values = [128]
 
@@ -80,7 +81,7 @@ for dataset_name in dataset_names:
 
     early_stopping_params = {
         "name": "EarlyStopping",
-        "patience": 1000, # Just take the epoch with best performance, no early stopping
+        "patience": 1000,
         "min_delta": 1e-3,
     }
 
@@ -133,12 +134,10 @@ for dataset_name in dataset_names:
     print(f"Total number of experiments: {len(hyperparameter_combinations)}")
 
     for i, combo in enumerate(hyperparameter_combinations, 1):
-        # Create parameter dictionary for this combination
         params = dict(zip(param_names, combo))
         print(f"Creating experiment {i}/{len(hyperparameter_combinations)}")
         print(f"Parameters: {params}")
 
-        # Extract parameters with defaults
         D = params['D']
         gmlp_n_layers = params.get('gmlp_n_layers')
         gmlp_dff = params.get('gmlp_dff') 
@@ -155,7 +154,6 @@ for dataset_name in dataset_names:
         mhap_qc = params.get('mhap_qc')
         mhap_lambda_for_residual = params.get('mhap_lambda_for_residual')
 
-        # Create gated_mlp_params for this combination
         if gmlp_type == 'old':
             gated_mlp_params = {
                 'type': gmlp_type,
@@ -167,7 +165,6 @@ for dataset_name in dataset_names:
                 'dropout_rate': gmlp_dr,
                 'use_t5_style': True
             }
-
         elif gmlp_type == 'basic':
             gated_mlp_params = {
                 'type': gmlp_type,
@@ -176,7 +173,6 @@ for dataset_name in dataset_names:
                 'dropout_rate': gmlp_dr,
                 'recurrent': gmlp_recurrent
             }
-
         elif gmlp_type == 'criss_cross':
             gated_mlp_params = {
                 'type': gmlp_type,
@@ -214,7 +210,6 @@ for dataset_name in dataset_names:
         else:
             transformer_params = None
 
-        # Create mhap_params for this combination
         if encoder_aggregation == 'attention_pooling':
             mhap_params = {
                 'A': mhap_A,
@@ -234,7 +229,163 @@ for dataset_name in dataset_names:
             'temporal_channel_selection': temporal_channel_selection,
         }
 
-        modeling_approach_config = {
+        if temporal_channel_selection is None:
+            exp_name = f'{embedding_model_name}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
+        else:
+            tcs_str = '-'.join([str(tc) for tc in temporal_channel_selection])
+            exp_name = f'{embedding_model_name}_tcs{tcs_str}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
+
+        if initial_proj_params is not None:
+            exp_name += 'ip-'
+            exp_name += f'{initial_proj_params["type"]}-'
+            exp_name += f'dr{initial_proj_params["dropout_rate"]}'
+            if initial_proj_params["type"] == 'reduced':
+                exp_name += f'-H{initial_proj_params["hidden_dim"]}_'
+            else:
+                exp_name += '_'
+
+        if pe_params is not None:
+            exp_name += 'pe-'
+            exp_name += f'{pe_params["pe_type"]}'
+
+            if pe_params['use_token_positional_embeddings']:
+                exp_name += 'N'
+
+            if pe_params['use_spatial_positional_embeddings']:
+                exp_name += 'S'
+
+            if pe_params['use_temporal_positional_embeddings']:
+                exp_name += 'T'
+
+            exp_name += '_'
+
+        if gated_mlp_params is not None:
+            exp_name += 'gmlp-'
+            exp_name += f't{gated_mlp_params["type"]}-'
+            exp_name += f'nl{gated_mlp_params["n_layers"]}-'
+            exp_name += f'dff{gated_mlp_params["dim_feedforward"]}-'
+            exp_name += f'dr{gated_mlp_params["dropout_rate"]}_'
+            if gated_mlp_params["type"] == 'criss_cross':
+                exp_name += f'cm{gated_mlp_params["combination_mode"]}_'
+
+            if gated_mlp_params['recurrent']:
+                exp_name += 'rec_'
+            else:
+                exp_name += 'nonrec_'
+
+        if transformer_params is not None:
+            exp_name += 'tf-'
+            exp_name += f't{transformer_params["type"]}-'
+            exp_name += f'A{transformer_params["n_heads"]}-'
+            exp_name += f'nl{transformer_params["n_layers"]}-'
+            exp_name += f'dff{transformer_params["dim_feedforward"]}-'
+            exp_name += f'dr{transformer_params["dropout_rate"]}_'
+
+        if mhap_params is not None:
+            exp_name += 'mhap-'
+            exp_name += f'A{mhap_params["A"]}-'
+            exp_name += f'dr{mhap_params["dropout_rate"]}-'
+            exp_name += f'Q{mhap_params["n_queries_per_head"]}-'
+            exp_name += f'qc{mhap_params["query_combination"]}_'
+            exp_name += f'lres{mhap_params["lambda_for_residual"]}_'
+        else:
+            exp_name += f'ea-{encoder_aggregation}_'
+
+        if final_classifier_params is not None:
+            exp_name += 'fc-'
+            exp_name += 'h'
+            for h in final_classifier_params['hidden_sizes']:
+                exp_name += f'{h}'
+            exp_name += f'-dr{final_classifier_params["dropout_rate"]}_'
+
+        if label_smoothing is not None:
+            exp_name += f'ls{label_smoothing}'
+
+        exp_name += f"gc{'T' if use_gradient_clipping else 'F'}_"
+
+        if use_batch_norm:
+            exp_name += f"bnorm_"
+
+        if use_instance_norm:
+            exp_name += f"inorm_"
+
+        exp_name += f'tdr{training_data_ratio}'
+
+        stage1_name = exp_name + "_stage1_supcon"
+        stage2_name = exp_name + "_stage2_linear"
+
+        if os.path.exists(experiments_dir + f'/{dataset_name}/{stage1_name}'):
+            continue
+
+        early_stopping_params_copy = early_stopping_params.copy()
+        early_stopping_params_copy["tmp_dir"] = local_config.tmp_dir
+
+        early_stopping_params_supcon = {
+            "name": "EarlyStopping",
+            "patience": 10**9,   # effectively disabled
+            "min_delta": 0.0,
+            "tmp_dir": local_config.tmp_dir,
+            "monitor_metric": "val_loss",
+        }          # stage 1
+        early_stopping_params_linear = early_stopping_params_copy  # stage 2
+
+        ckpt_dir = f"checkpoints/{dataset_name}/{exp_name}/supcon"
+        supcon_params = {
+            "temperature": 0.07,
+            "proj_head": {
+                "proj_dim": 128,
+                "proj_hidden_dim": 128,
+                "proj_dropout": 0.1
+            },
+            "train_classifier": False
+        }
+        aug_params = {
+            "jitter_std": 0.01,
+            "drop_prob": 0.0,
+            "time_mask_prob": 0.0
+        }
+
+        modeling_approach_config_supcon = {
+            'modeling_approach_name': 'SupConSTAMPModelingApproach',
+            'params': {
+                'temporal_channel_selection': temporal_channel_selection,
+                'use_batch_norm': use_batch_norm,
+                'use_instance_norm': use_instance_norm,
+                'use_gradient_clipping': use_gradient_clipping,
+                'input_dim': input_dim,
+                'D': D,
+                'initial_proj_params': initial_proj_params,
+                'pe_params': pe_params,
+                'transformer_params': transformer_params,
+                'gated_mlp_params': gated_mlp_params,
+                'encoder_aggregation': encoder_aggregation,
+                'mhap_params': mhap_params,
+                'final_classifier_params': final_classifier_params,
+                'n_epochs': n_epochs,
+                'train_batch_size': train_batch_size,
+                'test_batch_size': test_batch_size,
+                'min_epoch': min_epoch,
+                "use_tqdm": False,
+                "store_attention_weights": False,
+                "debug_size": None,
+                "lr_params": lr_params,
+                "optimizer_params": optimizer_params,
+                "early_stopping_params": early_stopping_params_supcon,
+                "checkpointing_params": {
+                    "checkpoint_dir": ckpt_dir,
+                    "save_best": True
+                },
+                "problem_type": problem_type,
+                "n_classes": n_classes,
+                "device": device,
+                "n_temporal_channels": 3,
+                "n_spatial_channels": 33,
+                "supcon_params": supcon_params,
+                "aug_params": aug_params,
+            }
+        }
+
+        modeling_approach_config_linear = {
             'modeling_approach_name': 'STAMPModelingApproach',
             'params': {
                 'temporal_channel_selection': temporal_channel_selection,
@@ -260,116 +411,26 @@ for dataset_name in dataset_names:
                 "debug_size": None,
                 "lr_params": lr_params,
                 "optimizer_params": optimizer_params,
-                "early_stopping_params": early_stopping_params,
-                'checkpointing_params': None,
+                "early_stopping_params": early_stopping_params_linear,
+                "checkpointing_params": None,
+                "problem_type": problem_type,
+                "n_classes": n_classes,
+                "device": device,
+                "n_temporal_channels": 3,
+                "n_spatial_channels": 33,
+                "load_pretrained_ckpt": os.path.join(ckpt_dir, "best.pth"),
+                "freeze_backbone": True,
             }
         }
 
-        # Construct exp_name based on config
-        if temporal_channel_selection is None:
-            exp_name = f'{embedding_model_name}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
-        else:
-            tcs_str = '-'.join([str(tc) for tc in temporal_channel_selection])
-            exp_name = f'{embedding_model_name}_tcs{tcs_str}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
+        final_exp_config_supcon = {'exp_name': stage1_name}
+        final_exp_config_supcon.update(exp_config)
+        final_exp_config_supcon['modeling_approach_config'] = modeling_approach_config_supcon
+        create_experiment(exp_dir=exp_dir, exp_config=final_exp_config_supcon)
 
-        # Handle initial projection
-        if initial_proj_params is not None:
-            exp_name += 'ip-'
-            exp_name += f'{initial_proj_params["type"]}-'
-            exp_name += f'dr{initial_proj_params["dropout_rate"]}'
-            if initial_proj_params["type"] == 'reduced':
-                exp_name += f'-H{initial_proj_params["hidden_dim"]}_'
-            else:
-                exp_name += '_'
-
-        # Handle positional embeddings
-        if pe_params is not None:
-            exp_name += 'pe-'
-            exp_name += f'{pe_params["pe_type"]}'
-
-            if pe_params['use_token_positional_embeddings']:
-                exp_name += 'N'
-
-            if pe_params['use_spatial_positional_embeddings']:
-                exp_name += 'S'
-
-            if pe_params['use_temporal_positional_embeddings']:
-                exp_name += 'T'
-
-            exp_name += '_'
-
-        # Gated MLP
-        if gated_mlp_params is not None:
-            exp_name += 'gmlp-'
-            exp_name += f't{gated_mlp_params["type"]}-'
-            exp_name += f'nl{gated_mlp_params["n_layers"]}-'
-            exp_name += f'dff{gated_mlp_params["dim_feedforward"]}-'
-            exp_name += f'dr{gated_mlp_params["dropout_rate"]}_'
-            if gated_mlp_params["type"] == 'criss_cross':
-                exp_name += f'cm{gated_mlp_params["combination_mode"]}_'
-
-            if gated_mlp_params['recurrent']:
-                exp_name += 'rec_'
-            else:
-                exp_name += 'nonrec_'
-
-        # Transformer
-        if transformer_params is not None:
-            exp_name += 'tf-'
-            exp_name += f't{transformer_params["type"]}-'
-            exp_name += f'A{transformer_params["n_heads"]}-'
-            exp_name += f'nl{transformer_params["n_layers"]}-'
-            exp_name += f'dff{transformer_params["dim_feedforward"]}-'
-            exp_name += f'dr{transformer_params["dropout_rate"]}_'
-
-        # MHAP
-        if mhap_params is not None:
-            exp_name += 'mhap-'
-            exp_name += f'A{mhap_params["A"]}-'
-            exp_name += f'dr{mhap_params["dropout_rate"]}-'
-            exp_name += f'Q{mhap_params["n_queries_per_head"]}-'
-            exp_name += f'qc{mhap_params["query_combination"]}_'
-            exp_name += f'lres{mhap_params["lambda_for_residual"]}_'
-        else:
-            exp_name += f'ea-{encoder_aggregation}_'
-
-        if final_classifier_params is not None:
-            exp_name += 'fc-'
-            exp_name += 'h'
-            for h in final_classifier_params['hidden_sizes']:
-                exp_name += f'{h}'
-            exp_name += f'-dr{final_classifier_params["dropout_rate"]}_'
-
-        # Label Smoothing
-        if label_smoothing is not None:
-            exp_name += f'ls{label_smoothing}'
-
-        # Gradient Clipping
-        exp_name += f"gc{'T' if use_gradient_clipping else 'F'}_"
-        
-        if use_batch_norm:
-            exp_name += f"bnorm_"
-        
-        if use_instance_norm:
-            exp_name += f"inorm_"
-        
-        exp_name += f'tdr{training_data_ratio}'
-
-        if os.path.exists(experiments_dir + f'/{dataset_name}/{exp_name}'):
-            continue
-
-        # Create a copy of early_stopping_params for each experiment
-        early_stopping_params_copy = early_stopping_params.copy()
-        early_stopping_params_copy['tmp_dir'] = local_config.tmp_dir
-
-        # Update the modeling approach config with the copied early stopping params
-        modeling_approach_config['params']['early_stopping_params'] = early_stopping_params_copy
-
-        exp_config['modeling_approach_config'] = modeling_approach_config
-        final_exp_config = {'exp_name': exp_name}
-        final_exp_config.update(exp_config)
-
-        # Create the experiment
-        create_experiment(exp_dir=exp_dir, exp_config=final_exp_config)
+        final_exp_config_linear = {'exp_name': stage2_name}
+        final_exp_config_linear.update(exp_config)
+        final_exp_config_linear['modeling_approach_config'] = modeling_approach_config_linear
+        create_experiment(exp_dir=exp_dir, exp_config=final_exp_config_linear)
 
     print(f"Successfully created {len(hyperparameter_combinations)} experiments!")

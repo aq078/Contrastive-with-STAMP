@@ -122,7 +122,29 @@ class STAMPModelingApproach(ModelingApproach):
 
         self.device = torch.device(device)
         self.model.to(self.device)
+        # --- sequential learning (stage-2) ---
+        self.load_pretrained_ckpt = kwargs.get("load_pretrained_ckpt", None)
+        self.freeze_backbone = kwargs.get("freeze_backbone", False)
 
+        if self.load_pretrained_ckpt is not None:
+            ckpt = torch.load(self.load_pretrained_ckpt, map_location=self.device)
+            state = ckpt.get("model_state_dict", ckpt)
+            self.model.load_state_dict(state, strict=False)
+
+        if self.freeze_backbone:
+            for p in self.model.parameters():
+                p.requires_grad = False
+            if hasattr(self.model, "classifier") and self.model.classifier is not None:
+                for p in self.model.classifier.parameters():
+                    p.requires_grad = True
+            else:
+                raise ValueError("freeze_backbone=True but model has no classifier to train.")
+            #debug---
+            trainable = [(n, p.numel()) for n, p in self.model.named_parameters() if p.requires_grad]
+            print("Trainable params:")
+            for n, k in trainable:
+                print(n, k)
+            #---
     def train(
         self,
         train_data_loader,
@@ -138,7 +160,12 @@ class STAMPModelingApproach(ModelingApproach):
         if self.problem_type == 'binary':
             criterion = nn.BCEWithLogitsLoss()
         elif self.problem_type == 'multiclass':
-            criterion = nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
+            #class weight added for sere dataset
+            class_weights = torch.tensor([3.0, 1.0], dtype=torch.float32, device=self.device)
+            criterion = nn.CrossEntropyLoss(
+                weight=class_weights,
+                label_smoothing=self.label_smoothing
+            )
         elif self.problem_type == 'regression':
             criterion = nn.MSELoss()
         else:
@@ -386,12 +413,14 @@ class STAMPModelingApproach(ModelingApproach):
 
     def initialize_optimizer(self):
         optimizer_name = self.optimizer_params['optimizer_name']
-
+        params = [p for p in self.model.parameters() if p.requires_grad]
+        if len(params) == 0:
+            raise ValueError("No trainable parameters found (did you freeze everything?).")
         if optimizer_name == 'adam':
-            self.model.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr_params['initial_lr'], betas=self.optimizer_params.get('betas', (0.9, 0.999)))
+            self.model.optimizer = torch.optim.Adam(params, lr=self.lr_params['initial_lr'], betas=self.optimizer_params.get('betas', (0.9, 0.999)))
         elif optimizer_name == 'adamw':
             self.model.optimizer = torch.optim.AdamW(
-                self.model.parameters(),
+                params,
                 lr=self.lr_params['initial_lr'],
                 betas=self.optimizer_params.get('betas', (0.9, 0.999)),
                 eps=self.optimizer_params.get('eps', 1e-8),

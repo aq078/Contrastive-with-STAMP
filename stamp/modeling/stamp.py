@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import math
 from stamp.modeling.acpe import ACPEAdapter
 from stamp.modeling.gated_mlp import BasicGatedMLPBlock
@@ -25,6 +26,7 @@ class STAMP(nn.Module):
         gated_mlp_params=None,
         mhap_params=None,
         n_cls_tokens=None,
+        supcon_params=None,
         ):
         super().__init__()
         assert input_dim > 0, "input_dim must be positive"
@@ -50,7 +52,28 @@ class STAMP(nn.Module):
         self.encoder_aggregation = encoder_aggregation
         self.gated_mlp_params = gated_mlp_params
         self.transformer_params = transformer_params
+        # -------------------------
+        # SupCon projection head (stage-1)
+        # -------------------------
+        self.supcon_params = supcon_params
+        if self.supcon_params is not None:
+            proj_dim = int(self.supcon_params.get("proj_dim", 128))
+            proj_hidden_dim = int(self.supcon_params.get("proj_hidden_dim", self.D))
+            proj_dropout = float(self.supcon_params.get("proj_dropout", 0.0))
 
+            layers = []
+            if proj_dropout > 0:
+                layers.append(nn.Dropout(proj_dropout))
+            layers.append(nn.Linear(self.D, proj_hidden_dim))
+            layers.append(nn.ReLU(inplace=True))
+            if proj_dropout > 0:
+                layers.append(nn.Dropout(proj_dropout))
+            layers.append(nn.Linear(proj_hidden_dim, proj_dim))
+
+            self.proj_head = nn.Sequential(*layers)
+        else:
+            self.proj_head = None
+        ###
         if self.use_batch_norm:
             self.data_norm = nn.BatchNorm1d(input_dim)
         elif self.use_instance_norm:
@@ -300,62 +323,192 @@ class STAMP(nn.Module):
             num_layers=self.transformer_params['n_layers'],
             norm=nn.LayerNorm(self.D) if self.transformer_params.get('use_final_norm', True) else None
         )
+        
+    def forward(
+        self,
+        x,
+        return_attention: bool = False,
+        return_features: bool = False,
+        return_proj: bool = False,
+    ):
+        """
+        Args:
+            x: (B, T, S, input_dim)
+            return_attention: if True, return attention weights for MHAP (if used)
+            return_features: if True, also return pooled features (post-aggregation, pre-classifier)
+            return_proj: if True, also return projection head output (for SupCon). Implies return_features.
 
-    def forward(self, x, return_attention):
-        # x shape: (B, T, S, moment_embedding_dim) where the batch dimension represents patients
+        Returns:
+            By default:
+                logits, attn_weights_or_None
+
+            If return_features:
+                logits, features, attn_weights_or_None
+
+            If return_proj:
+                logits, features, z_proj, attn_weights_or_None
+        """
+        # x shape: (B, T, S, input_dim) where the batch dimension represents patients
         B, T, S, input_dim = x.shape
-
         N = T * S
 
+        # Normalization
         if self.use_batch_norm:
             x = self.apply_batch_norm(x, B, T, S, input_dim)
         elif self.use_instance_norm:
             x = self.apply_instance_norm(x, B, T, S, input_dim)
 
+        # Project to model dim D if needed
         if input_dim != self.D:
-            # Only apply linear transformation if the input dimension is different from D
-            x = self.linear(x) # Shape: (B, T, S, D)
+            x = self.linear(x)  # (B, T, S, D)
 
-        tokens = x.reshape(B, N, self.D)  # Reshape to (B, N, D)
+        # Flatten to tokens
+        tokens = x.reshape(B, N, self.D)  # (B, N, D)
 
+        # Positional embeddings
         if self.use_positional_embeddings:
-            embeds = self.build_positional_embeddings(x, N, B, T, S)  # List of positional embeddings
+            embeds = self.build_positional_embeddings(x, N, B, T, S)
+            tokens = tokens + embeds  # (B, N, D)
 
-            tokens = tokens + embeds  # Shape: (B, N, D)
-
+        # Token-mixing blocks (GMLP)
         if self.gated_mlp_params is not None:
-            if self.gated_mlp_params['type'] == 'criss_cross':
-                tokens = tokens.reshape(B, T, S, self.D)
+            if self.gated_mlp_params["type"] == "criss_cross":
+                tokens = tokens.reshape(B, T, S, self.D)  # (B, T, S, D)
 
-            # Apply the gated MLP blocks
             for layer in self.gated_mlp:
-                tokens = layer(tokens) # Shape: (B, T, S, D)
+                tokens = layer(tokens)
 
-            if self.gated_mlp_params['type'] == 'criss_cross':
-                tokens = tokens.reshape(B, N, self.D)  # Reshape to (B, N, D)
+            if self.gated_mlp_params["type"] == "criss_cross":
+                tokens = tokens.reshape(B, N, self.D)  # (B, N, D)
 
+        # Transformer (optional)
         if self.transformer_params is not None:
-            tokens = self.transformer(tokens, src_key_padding_mask=None)  # Shape: (B, N, D)
+            tokens = self.transformer(tokens, src_key_padding_mask=None)  # (B, N, D)
 
-        if self.encoder_aggregation == 'mean_across_tokens':
-            out = tokens.mean(dim=1)  # Shape: (B, D)
-        elif self.encoder_aggregation == 'token_prediction_averaging':
-            # Apply token-level classification and average predictions
-            token_predictions = self.token_classifier(tokens)  # Shape: (B, N, n_classes)
-            out = token_predictions.mean(dim=1)  # (B, n_classes)
-        elif self.encoder_aggregation == 'attention_pooling':
-            out, attn_weights = self.multi_head_attention_pooling(out=tokens, B=B)
+        # Aggregation
+        attn_weights = None
+        if self.encoder_aggregation == "mean_across_tokens":
+            features = tokens.mean(dim=1)  # (B, D)
+
+        elif self.encoder_aggregation == "token_prediction_averaging":
+            # This path produces class logits directly (token-wise classifier).
+            # There is no single pooled feature vector unless you define one.
+            token_predictions = self.token_classifier(tokens)  # (B, N, n_classes)
+            logits = token_predictions.mean(dim=1)  # (B, n_classes)
+
+            # For API consistency:
+            if return_proj or return_features:
+                raise ValueError(
+                    "return_features/return_proj not supported when encoder_aggregation=='token_prediction_averaging'. "
+                    "Use 'mean_across_tokens' or 'attention_pooling' for contrastive training."
+                )
+
+            if return_attention:
+                return logits, None
+            return logits, None
+
+        elif self.encoder_aggregation == "attention_pooling":
+            features, attn_weights = self.multi_head_attention_pooling(out=tokens, B=B)  # features: (B, D)
+
         else:
             raise ValueError(f"Unknown encoder_aggregation method: {self.encoder_aggregation}")
 
-        if self.encoder_aggregation != 'token_prediction_averaging':
-            out = self.classifier(out) # Shape: (B, n_classes)
+        # Classification head (stage-2)
+        if self.classifier is None:
+            raise RuntimeError("classifier is None; cannot compute logits in this mode.")
+        logits = self.classifier(features)
 
+        # Projection head (stage-1 SupCon)
+        z_proj = None
+        if return_proj:
+            # assumes you implemented self.project(features) or self.proj_head + normalize
+            if hasattr(self, "project") and callable(self.project):
+                z_proj = self.project(features)
+            else:
+                raise AttributeError(
+                    "return_proj=True but STAMP has no .project(features) method. "
+                    "Add a projection head (self.proj_head) and a project() method."
+                )
+
+        # Return shape options
+        if return_proj:
+            return logits, features, z_proj, (attn_weights.detach().cpu() if (return_attention and attn_weights is not None) else None)
+
+        if return_features:
+            return logits, features, (attn_weights.detach().cpu() if (return_attention and attn_weights is not None) else None)
+
+        # Original behavior
         if return_attention:
-            return out, attn_weights.detach().cpu() if self.encoder_aggregation == 'attention_pooling' else None
-        else:
-            return out, None
-    
+            return logits, (attn_weights.detach().cpu() if attn_weights is not None else None)
+        return logits, None
+    #original forward
+    # def forward(self, x, return_attention):
+    #     # x shape: (B, T, S, moment_embedding_dim) where the batch dimension represents patients
+    #     B, T, S, input_dim = x.shape
+
+    #     N = T * S
+
+    #     if self.use_batch_norm:
+    #         x = self.apply_batch_norm(x, B, T, S, input_dim)
+    #     elif self.use_instance_norm:
+    #         x = self.apply_instance_norm(x, B, T, S, input_dim)
+
+    #     if input_dim != self.D:
+    #         # Only apply linear transformation if the input dimension is different from D
+    #         x = self.linear(x) # Shape: (B, T, S, D)
+
+    #     tokens = x.reshape(B, N, self.D)  # Reshape to (B, N, D)
+
+    #     if self.use_positional_embeddings:
+    #         embeds = self.build_positional_embeddings(x, N, B, T, S)  # List of positional embeddings
+
+    #         tokens = tokens + embeds  # Shape: (B, N, D)
+
+    #     if self.gated_mlp_params is not None:
+    #         if self.gated_mlp_params['type'] == 'criss_cross':
+    #             tokens = tokens.reshape(B, T, S, self.D)
+
+    #         # Apply the gated MLP blocks
+    #         for layer in self.gated_mlp:
+    #             tokens = layer(tokens) # Shape: (B, T, S, D)
+
+    #         if self.gated_mlp_params['type'] == 'criss_cross':
+    #             tokens = tokens.reshape(B, N, self.D)  # Reshape to (B, N, D)
+
+    #     if self.transformer_params is not None:
+    #         tokens = self.transformer(tokens, src_key_padding_mask=None)  # Shape: (B, N, D)
+
+    #     if self.encoder_aggregation == 'mean_across_tokens':
+    #         out = tokens.mean(dim=1)  # Shape: (B, D)
+    #     elif self.encoder_aggregation == 'token_prediction_averaging':
+    #         # Apply token-level classification and average predictions
+    #         token_predictions = self.token_classifier(tokens)  # Shape: (B, N, n_classes)
+    #         out = token_predictions.mean(dim=1)  # (B, n_classes)
+    #     elif self.encoder_aggregation == 'attention_pooling':
+    #         out, attn_weights = self.multi_head_attention_pooling(out=tokens, B=B)
+    #     else:
+    #         raise ValueError(f"Unknown encoder_aggregation method: {self.encoder_aggregation}")
+
+    #     if self.encoder_aggregation != 'token_prediction_averaging':
+    #         out = self.classifier(out) # Shape: (B, n_classes)
+
+    #     if return_attention:
+    #         return out, attn_weights.detach().cpu() if self.encoder_aggregation == 'attention_pooling' else None
+    #     else:
+    #         return out, None
+    def project(self, features: torch.Tensor) -> torch.Tensor:
+        """
+        Projection head output for supervised contrastive learning.
+        features: (B, D)
+        returns:  (B, proj_dim) L2-normalized
+        """
+        if self.proj_head is None:
+            raise RuntimeError(
+                "Projection head is not initialized. Pass supcon_params to STAMP.__init__."
+            )
+        z = self.proj_head(features)
+        z = F.normalize(z, p=2, dim=-1)
+        return z
     def apply_batch_norm(self, x, B, T, S, input_dim):
         # Reshape for batch norm: (B, T, S, input_dim) -> (B*T*S, input_dim)
         x = x.reshape(B * T * S, input_dim)

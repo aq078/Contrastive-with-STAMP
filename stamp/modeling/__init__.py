@@ -6,13 +6,15 @@ The `stamp.modeling` module implements classes for modeling approaches.
 from .stamp_trainer import STAMPModelingApproach
 from .cbramod import CBraModModelingApproach
 from .moment_lora_adapter import MOMENTLoraAdapterModelingApproach
+from .supcon_trainer import SupConSTAMPModelingApproach
 
 
 # Create a dictionary that maps modeling approach names to their corresponding class objects
 modeling_approach_classes = {
     "STAMPModelingApproach": STAMPModelingApproach,
     "CBraModModelingApproach": CBraModModelingApproach,
-    "MOMENTLoraAdapterModelingApproach": MOMENTLoraAdapterModelingApproach
+    "MOMENTLoraAdapterModelingApproach": MOMENTLoraAdapterModelingApproach,
+    "SupConSTAMPModelingApproach":SupConSTAMPModelingApproach
 }
 
 def create_modeling_approach(

@@ -220,7 +220,16 @@ def run_full_experiment(
         )
         testing_run_time = time.time() - test_start
         print(f'Finished testing for random seed {random_seed}...{testing_run_time}')
-
+        
+        #If in stage-1 supCon, no need to do test prediction & plots, etc
+        if modeling_approach_config["modeling_approach_name"] == "SupConSTAMPModelingApproach":
+            print("Finished SupCon pretraining; skipping supervised evaluation.")
+            training_run_time_per_seed[random_seed] = training_run_time
+            testing_run_time_per_seed[random_seed] = testing_run_time
+            pred_df_per_seed[random_seed] = pred_df
+            extra_info_per_seed[random_seed] = extra_info
+            continue
+        
         plot_all_train_val_curves(
             extra_info=extra_info,
             exp_dir=curr_exp_dir,
@@ -251,9 +260,13 @@ def run_full_experiment(
     total_params = sum(p.numel() for p in modeling_approach.model.parameters() if p.requires_grad)
 
     # Calculate mean and std of performance metrics
-    mean_performance_metrics, std_performance_metrics = calculate_mean_and_std_performance_metrics(
-        performance_metrics_per_seed=performance_metrics_per_seed
-    )
+    if len(performance_metrics_per_seed) != 0:
+        mean_performance_metrics, std_performance_metrics = calculate_mean_and_std_performance_metrics(
+            performance_metrics_per_seed=performance_metrics_per_seed
+        )
+    else:
+        mean_performance_metrics = {}
+        std_performance_metrics = {}
     main_run_time = time.time() - main_start
     print(f'Finished experiment {exp_name}...{main_run_time}')
 
