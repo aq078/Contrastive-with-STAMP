@@ -16,6 +16,5 @@ stamp.egg-info/**
 .vscode/**
 dataset/
 moment/
-experiments/
 embeddings/
 temporary/
