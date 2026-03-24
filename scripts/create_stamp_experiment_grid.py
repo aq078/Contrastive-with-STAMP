@@ -17,7 +17,7 @@ for dataset_name in dataset_names:
 
     temporal_channel_selection = None
     training_data_ratio = 1.0
-    label_smoothing = 0.1
+    label_smoothing = 0
     use_gradient_clipping = True
     use_batch_norm = False
     use_instance_norm = True
@@ -27,7 +27,7 @@ for dataset_name in dataset_names:
 
     dropout_rate = 0.3
 
-    n_epochs = 50
+    n_epochs = 80
     train_batch_size = 16
     test_batch_size = 16
     min_epoch = 0
@@ -68,8 +68,8 @@ for dataset_name in dataset_names:
     lr_params = {
         "use_scheduler": True,
         "scheduler_type": "one_cycle",
-        "initial_lr": 5e-5,
-        "max_lr": 3e-4,
+        "initial_lr": 5e-4,
+        "max_lr": 3e-3,
     }
 
     optimizer_params = {

@@ -88,7 +88,7 @@ class STAMPModelingApproach(ModelingApproach):
             if self.problem_type == 'binary':
                 self.early_stopping_params['monitor_metric'] = 'val_roc_auc'
             elif self.problem_type == 'multiclass':
-                self.early_stopping_params['monitor_metric'] = 'val_cohen_kappa'
+                self.early_stopping_params['monitor_metric'] = 'val_balanced_acc'
             else:
                 raise ValueError()
             self.tmp_dir = early_stopping_params.get('tmp_dir')
