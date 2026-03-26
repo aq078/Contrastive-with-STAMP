@@ -531,10 +531,25 @@ def plot_train_val_curves(
     seed
 ):
     plt.figure(figsize=(10, 5))
-    plt.plot(train_values, label=f'Train')
-    plt.plot(val_values, label=f'Validation')
+    plt.plot(train_values, label='Train')
+    plt.plot(val_values, label='Validation')
+
     if best_epoch is not None:
         plt.axvline(x=best_epoch, color='r', linestyle='--', label='Best Epoch')
+
+    # Fixed y-axis ranges for comparability
+    label_to_ylim = {
+        'Total Loss': (0.0, 5.0),
+        'Balanced Accuracy': (0.0, 1.0),
+        'AUC-PR': (0.0, 1.0),
+        'AUROC': (0.0, 1.0),
+        'Cohen Kappa Score': (0.0, 1.0),
+        'Weighted F1': (0.0, 1.0),
+    }
+
+    if label in label_to_ylim:
+        plt.ylim(label_to_ylim[label])
+
     plt.grid()
     plt.xlabel('Epochs')
     plt.ylabel(label)
@@ -542,7 +557,6 @@ def plot_train_val_curves(
     plt.legend()
     plt.savefig(f'{exp_figures_dir}/seed_{seed}_{label}_curve.png')
     plt.close()
-
 def calculate_performance_metrics(problem_type, truths, probs, preds):
     performance_metrics = {}
     if problem_type == 'binary':

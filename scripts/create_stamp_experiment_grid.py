@@ -7,7 +7,7 @@ local_config = get_local_config()
 
 experiments_dir = local_config.tsfm_experiments_dir
 
-dataset_names = ['sere']
+dataset_names = ['sere_video_rom']
 
 for dataset_name in dataset_names:
     exp_dir = experiments_dir + f'/{dataset_name}'
@@ -22,12 +22,12 @@ for dataset_name in dataset_names:
     use_batch_norm = False
     use_instance_norm = True
 
-    assert use_batch_norm + use_instance_norm < 2, 'use_batch_norm and use_instance_norm should not both be True.'
+    assert use_batch_norm + use_instance_norm < 2, 'use_bascrtch_norm and use_instance_norm should not both be True.'
     input_dim = 1024
 
     dropout_rate = 0.3
 
-    n_epochs = 80
+    n_epochs = 90
     train_batch_size = 16
     test_batch_size = 16
     min_epoch = 0
@@ -69,7 +69,7 @@ for dataset_name in dataset_names:
         "use_scheduler": True,
         "scheduler_type": "one_cycle",
         "initial_lr": 5e-4,
-        "max_lr": 3e-3,
+        "max_lr": 1e-3,
     }
 
     optimizer_params = {

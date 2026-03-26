@@ -42,7 +42,11 @@ class CustomLMDBPickleDataset(Dataset):
             'shu',
             'speech',
             'stress',
-            'sere'
+            'sere',
+            'sere_video_comp',
+            'sere_video_rom',
+            'sere_video_smooth',
+            'sere_video_spast'
         ]
 
         assert self.dataset_name in valid_dataset_names, f'Given dataset name, {self.dataset_name}, is not in {valid_dataset_names}.'

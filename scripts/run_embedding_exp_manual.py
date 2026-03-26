@@ -6,11 +6,11 @@ import os
 
 local_config = get_local_config()
 
-dataset_names = ['sere']
+dataset_names = ['sere_video_rom']
 
 #change before run
 exp_names = [
-'MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0gcT_inorm_tdr1.0_stage2_linear'
+'MOMENT-1-large_nrs5_ne90_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0gcT_inorm_tdr1.0_stage2_linear'
 ]
 
 experiments_dir = local_config.tsfm_experiments_dir
