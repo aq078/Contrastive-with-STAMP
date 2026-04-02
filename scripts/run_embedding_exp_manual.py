@@ -6,14 +6,14 @@ import os
 
 local_config = get_local_config()
 
-dataset_names = ['sere']
+dataset_names = ['sere_video_rom']
 
 exp_names = [
-'MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0'
+'baseline_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0'
 ]
 
 experiments_dir = local_config.tsfm_experiments_dir
-device = 'cuda:3'
+device = 'cuda:0'
 
 for dataset_name in dataset_names:
     for exp_name in exp_names:

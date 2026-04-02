@@ -8,7 +8,7 @@ local_config = get_local_config()
 experiments_dir = local_config.tsfm_experiments_dir
 
 # dataset_names = ['faced', 'mumtaz', 'shu', 'stress', 'physio', 'bciciv2a', 'seedv', 'isruc', 'tuev']
-dataset_names = ['sere']
+dataset_names = ['sere_event_comp']
 
 for dataset_name in dataset_names:
     exp_dir = experiments_dir + f'/{dataset_name}'
@@ -28,7 +28,7 @@ for dataset_name in dataset_names:
 
     dropout_rate = 0.3
 
-    n_epochs = 50
+    n_epochs =50
     train_batch_size = 64
     test_batch_size = 64
     min_epoch = 0
@@ -267,10 +267,10 @@ for dataset_name in dataset_names:
 
         # Construct exp_name based on config
         if temporal_channel_selection is None:
-            exp_name = f'{embedding_model_name}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
+            exp_name = f'baseline_{embedding_model_name}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
         else:
             tcs_str = '-'.join([str(tc) for tc in temporal_channel_selection])
-            exp_name = f'{embedding_model_name}_tcs{tcs_str}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
+            exp_name = f'baseline_{embedding_model_name}_tcs{tcs_str}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
 
         # Handle initial projection
         if initial_proj_params is not None:
