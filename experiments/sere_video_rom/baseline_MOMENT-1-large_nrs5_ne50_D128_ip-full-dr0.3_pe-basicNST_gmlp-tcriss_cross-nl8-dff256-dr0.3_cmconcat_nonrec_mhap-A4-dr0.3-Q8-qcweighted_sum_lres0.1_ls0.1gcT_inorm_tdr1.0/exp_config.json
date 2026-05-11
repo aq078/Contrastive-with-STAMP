@@ -1,5 +1,5 @@
 {
-    "exp_name": "MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear",
+    "exp_name": "baseline_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0",
     "embedding_model_name": "MOMENT-1-large",
     "embedding_models_dir": "moment/MOMENT-1-large",
     "n_random_seeds": 5,
@@ -43,18 +43,18 @@
                 "lambda_for_residual": 0.1
             },
             "final_classifier_params": null,
-            "n_epochs": 200,
-            "train_batch_size": 16,
-            "test_batch_size": 16,
-            "min_epoch": 180,
+            "n_epochs": 50,
+            "train_batch_size": 64,
+            "test_batch_size": 64,
+            "min_epoch": 0,
             "use_tqdm": false,
             "store_attention_weights": false,
             "debug_size": null,
             "lr_params": {
                 "use_scheduler": true,
                 "scheduler_type": "one_cycle",
-                "initial_lr": 0.0001,
-                "max_lr": 0.0005
+                "initial_lr": 5e-05,
+                "max_lr": 0.0003
             },
             "optimizer_params": {
                 "optimizer_name": "adamw",
@@ -69,7 +69,7 @@
                 "name": "EarlyStopping",
                 "patience": 1000,
                 "min_delta": 0.001,
-                "tmp_dir": "temporary/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear",
+                "tmp_dir": "temporary/sere_video_rom/baseline_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0",
                 "monitor_metric": "val_balanced_acc"
             },
             "checkpointing_params": null,
@@ -78,12 +78,10 @@
             "device": "cuda:0",
             "n_temporal_channels": 3,
             "n_spatial_channels": 33,
-            "load_pretrained_ckpt": "checkpoints/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/supcon/best.pth",
-            "freeze_backbone": true,
-            "n_samples": 2971
+            "n_samples": 1259
         }
     },
-    "embeddings_dir": "embeddings/sere/MOMENT-1-large",
+    "embeddings_dir": "embeddings/sere_video_rom/MOMENT-1-large",
     "random_seeds": [
         654,
         114,
@@ -91,8 +89,8 @@
         759,
         281
     ],
-    "commit_hash": "6e6f51d3d4fbc89ab51f98ad89066f1e6cadfc19",
-    "run_date": "2026-04-23 06:14:33",
+    "commit_hash": "a1ecbab4dc0c1ca0358a8dea23941b4138c5622d",
+    "run_date": "2026-03-26 10:16:46",
     "gpu_info": [
         {
             "gpu_id": 0,
@@ -101,20 +99,20 @@
         }
     ],
     "training_run_time_per_seed": {
-        "654": 329.07188534736633,
-        "114": 325.52878522872925,
-        "25": 324.358154296875,
-        "759": 327.00084161758423,
-        "281": 326.36737155914307
+        "654": 29.805092811584473,
+        "114": 27.503546237945557,
+        "25": 27.363367080688477,
+        "759": 27.890724420547485,
+        "281": 27.844295740127563
     },
     "testing_run_time_per_seed": {
-        "654": 0.4791555404663086,
-        "114": 0.4809141159057617,
-        "25": 0.48197078704833984,
-        "759": 0.47994112968444824,
-        "281": 0.4818379878997803
+        "654": 0.17684626579284668,
+        "114": 0.17876839637756348,
+        "25": 0.18200016021728516,
+        "759": 0.18343639373779297,
+        "281": 0.20409917831420898
     },
-    "main_run_time": 1637.9503164291382,
-    "total_parameters": 34178,
-    "total_flops": 1155141632
+    "main_run_time": 144.4209747314453,
+    "total_parameters": 727282,
+    "total_flops": 4620566528
 }

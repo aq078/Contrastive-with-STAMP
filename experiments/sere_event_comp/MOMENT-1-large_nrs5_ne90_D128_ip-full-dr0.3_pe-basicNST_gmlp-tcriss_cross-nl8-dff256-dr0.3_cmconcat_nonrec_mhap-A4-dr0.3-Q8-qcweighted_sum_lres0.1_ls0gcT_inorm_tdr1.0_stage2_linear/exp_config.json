@@ -1,5 +1,5 @@
 {
-    "exp_name": "MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear",
+    "exp_name": "MOMENT-1-large_nrs5_ne90_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0gcT_inorm_tdr1.0_stage2_linear",
     "embedding_model_name": "MOMENT-1-large",
     "embedding_models_dir": "moment/MOMENT-1-large",
     "n_random_seeds": 5,
@@ -9,7 +9,7 @@
         "modeling_approach_name": "STAMPModelingApproach",
         "params": {
             "temporal_channel_selection": null,
-            "label_smoothing": 0.1,
+            "label_smoothing": 0,
             "use_batch_norm": false,
             "use_instance_norm": true,
             "use_gradient_clipping": true,
@@ -43,18 +43,18 @@
                 "lambda_for_residual": 0.1
             },
             "final_classifier_params": null,
-            "n_epochs": 200,
+            "n_epochs": 90,
             "train_batch_size": 16,
             "test_batch_size": 16,
-            "min_epoch": 180,
+            "min_epoch": 0,
             "use_tqdm": false,
             "store_attention_weights": false,
             "debug_size": null,
             "lr_params": {
                 "use_scheduler": true,
                 "scheduler_type": "one_cycle",
-                "initial_lr": 0.0001,
-                "max_lr": 0.0005
+                "initial_lr": 0.0005,
+                "max_lr": 0.003
             },
             "optimizer_params": {
                 "optimizer_name": "adamw",
@@ -69,7 +69,7 @@
                 "name": "EarlyStopping",
                 "patience": 1000,
                 "min_delta": 0.001,
-                "tmp_dir": "temporary/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear",
+                "tmp_dir": "temporary/sere_event_comp/MOMENT-1-large_nrs5_ne90_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0gcT_inorm_tdr1.0_stage2_linear",
                 "monitor_metric": "val_balanced_acc"
             },
             "checkpointing_params": null,
@@ -78,12 +78,12 @@
             "device": "cuda:0",
             "n_temporal_channels": 3,
             "n_spatial_channels": 33,
-            "load_pretrained_ckpt": "checkpoints/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/supcon/best.pth",
+            "load_pretrained_ckpt": "checkpoints/sere_event_comp/MOMENT-1-large_nrs5_ne90_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0gcT_inorm_tdr1.0/supcon/best.pth",
             "freeze_backbone": true,
-            "n_samples": 2971
+            "n_samples": 1436
         }
     },
-    "embeddings_dir": "embeddings/sere/MOMENT-1-large",
+    "embeddings_dir": "embeddings/sere_event_comp/MOMENT-1-large",
     "random_seeds": [
         654,
         114,
@@ -92,7 +92,7 @@
         281
     ],
     "commit_hash": "6e6f51d3d4fbc89ab51f98ad89066f1e6cadfc19",
-    "run_date": "2026-04-23 06:14:33",
+    "run_date": "2026-04-02 04:08:20",
     "gpu_info": [
         {
             "gpu_id": 0,
@@ -101,20 +101,20 @@
         }
     ],
     "training_run_time_per_seed": {
-        "654": 329.07188534736633,
-        "114": 325.52878522872925,
-        "25": 324.358154296875,
-        "759": 327.00084161758423,
-        "281": 326.36737155914307
+        "654": 73.37043714523315,
+        "114": 72.15624856948853,
+        "25": 72.20163774490356,
+        "759": 72.60224199295044,
+        "281": 72.56811761856079
     },
     "testing_run_time_per_seed": {
-        "654": 0.4791555404663086,
-        "114": 0.4809141159057617,
-        "25": 0.48197078704833984,
-        "759": 0.47994112968444824,
-        "281": 0.4818379878997803
+        "654": 0.2187495231628418,
+        "114": 0.22420144081115723,
+        "25": 0.2150101661682129,
+        "759": 0.2232832908630371,
+        "281": 0.2220287322998047
     },
-    "main_run_time": 1637.9503164291382,
+    "main_run_time": 366.88830375671387,
     "total_parameters": 34178,
     "total_flops": 1155141632
 }

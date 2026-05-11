@@ -7,7 +7,7 @@ local_config = get_local_config()
 
 experiments_dir = local_config.tsfm_experiments_dir
 
-dataset_names = ['sere_video_rom']
+dataset_names = ['sere']
 
 for dataset_name in dataset_names:
     exp_dir = experiments_dir + f'/{dataset_name}'
@@ -69,7 +69,7 @@ for dataset_name in dataset_names:
         "use_scheduler": True,
         "scheduler_type": "one_cycle",
         "initial_lr": 5e-4,
-        "max_lr": 1e-3,
+        "max_lr": 3e-3,
     }
 
     optimizer_params = {

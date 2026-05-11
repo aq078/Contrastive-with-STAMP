@@ -46,7 +46,9 @@ class CustomLMDBPickleDataset(Dataset):
             'sere_video_comp',
             'sere_video_rom',
             'sere_video_smooth',
-            'sere_video_spast'
+            'sere_video_spast',
+            'sere_event_comp',
+            'sere_comp_hybrid'
         ]
 
         assert self.dataset_name in valid_dataset_names, f'Given dataset name, {self.dataset_name}, is not in {valid_dataset_names}.'

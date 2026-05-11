@@ -554,6 +554,8 @@ def plot_train_val_curves(
     plt.xlabel('Epochs')
     plt.ylabel(label)
     plt.title(title)
+    # if label == "Balanced Accuracy":
+    #     plt.ylim(0.5, 1.0)
     plt.legend()
     plt.savefig(f'{exp_figures_dir}/seed_{seed}_{label}_curve.png')
     plt.close()

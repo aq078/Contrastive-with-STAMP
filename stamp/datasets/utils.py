@@ -142,6 +142,20 @@ dataset_params = {
     'n_samples': 1259,   # fill after counting
     'n_classes': 2    # change if your label isn't binary
 },
+    'sere_event_comp': {
+    'orig_sampling_rate': 30,
+    'n_spatial_channels': 33,
+    'n_temporal_channels': 3,
+    'n_samples': 1436,   # fill after counting
+    'n_classes': 2    # change if your label isn't binary
+},
+    'sere_comp_hybrid': {
+    'orig_sampling_rate': 30,
+    'n_spatial_channels': 33,
+    'n_temporal_channels': 3,
+    'n_samples': 2890,   # fill after counting
+    'n_classes': 2    # change if your label isn't binary
+},   
 
 }
 
