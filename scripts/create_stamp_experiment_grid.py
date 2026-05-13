@@ -52,7 +52,7 @@ for dataset_name in dataset_names:
     tr_dr_values = [dropout_rate] if tr_type is not None else None
 
     # Encoder aggregation
-    encoder_aggregation = 'attention_pooling'  # Options: 'mean_across_tokens, 'attention_pooling', 'token_prediction_averaging'
+    encoder_aggregation = 'max_logits'  # Options: "attention_pooling"(baseline MHAP),"mean_feature", "max_feature", "mean_logits", "max_logits"
     mhap_A_values = [4] if encoder_aggregation == 'attention_pooling' else None
     mhap_dr_values = [dropout_rate] if encoder_aggregation == 'attention_pooling' else None
     mhap_Q_values = [8] if encoder_aggregation == 'attention_pooling' else None
@@ -267,10 +267,10 @@ for dataset_name in dataset_names:
 
         # Construct exp_name based on config
         if temporal_channel_selection is None:
-            exp_name = f'{embedding_model_name}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
+            exp_name = f'tokenSupCon_{embedding_model_name}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
         else:
             tcs_str = '-'.join([str(tc) for tc in temporal_channel_selection])
-            exp_name = f'{embedding_model_name}_tcs{tcs_str}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
+            exp_name = f'tokenSupCon_{embedding_model_name}_tcs{tcs_str}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
 
         # Handle initial projection
         if initial_proj_params is not None:

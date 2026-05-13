@@ -9,7 +9,7 @@ from momentfm import MOMENTPipeline
 from stamp.modeling.modeling_approach import ModelingApproach
 from stamp.modeling.early_stopping import *
 from stamp.modeling.utils import calculate_binary_performance_metrics, calculate_multiclass_performance_metrics
-from stamp.modeling.stamp import STAMP
+from stamp.modeling.stamp_agg_ablation import STAMPAggregationAblation
 
 class FullModel(nn.Module):
     def __init__(self, moment_model, adapter):
@@ -194,7 +194,7 @@ class MOMENTLoraAdapterModelingApproach(ModelingApproach):
         moment_model = get_peft_model(moment_model, lora_config)
         moment_model.print_trainable_parameters() # Be sure only LoRA params are trainable
         
-        adapter = STAMP(
+        adapter = STAMPAggregationAblation(
             use_batch_norm=self.use_batch_norm,
             use_instance_norm=self.use_instance_norm,
             input_dim=self.input_dim,

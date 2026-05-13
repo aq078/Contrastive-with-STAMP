@@ -8,7 +8,7 @@ from fvcore.nn import FlopCountAnalysis
 from stamp.modeling.modeling_approach import ModelingApproach
 from stamp.modeling.early_stopping import build_early_stopping
 from stamp.modeling.utils import calculate_binary_performance_metrics, calculate_multiclass_performance_metrics
-from stamp.modeling.stamp import STAMP
+from stamp.modeling.stamp_agg_ablation import STAMPAggregationAblation
 
 class STAMPModelingApproach(ModelingApproach):
     def __init__(
@@ -88,7 +88,7 @@ class STAMPModelingApproach(ModelingApproach):
             if self.problem_type == 'binary':
                 self.early_stopping_params['monitor_metric'] = 'val_roc_auc'
             elif self.problem_type == 'multiclass':
-                self.early_stopping_params['monitor_metric'] = 'val_cohen_kappa'
+                self.early_stopping_params['monitor_metric'] = 'val_balanced_acc'
             else:
                 raise ValueError()
             self.tmp_dir = early_stopping_params.get('tmp_dir')
@@ -99,7 +99,7 @@ class STAMPModelingApproach(ModelingApproach):
 
         self.checkpointing_params = checkpointing_params
 
-        self.model = STAMP(
+        self.model = STAMPAggregationAblation(
             use_batch_norm=self.use_batch_norm,
             use_instance_norm=self.use_instance_norm,
             input_dim=self.input_dim,
