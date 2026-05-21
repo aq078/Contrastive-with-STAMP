@@ -28,7 +28,7 @@ for dataset_name in dataset_names:
 
     dropout_rate = 0.3
 
-    n_epochs = 50
+    n_epochs = 100
     train_batch_size = 64
     test_batch_size = 64
     min_epoch = 0
@@ -59,6 +59,12 @@ for dataset_name in dataset_names:
     mhap_qc_values = ['weighted_sum'] if encoder_aggregation == 'attention_pooling' else None
     mhap_lambda_for_residual_values = [0.1] if encoder_aggregation == 'attention_pooling' else None
 
+    #supcon
+    use_supcon = True
+    supcon_lambda = 0.01
+    supcon_temperature = 0.07
+    supcon_mode = "all_tokens" #mean_tokens: averaged token embedding; all_tokens: each token independently
+    ##
     initial_proj_params = {
         'type': 'full',
         'dropout_rate': dropout_rate,
@@ -67,8 +73,8 @@ for dataset_name in dataset_names:
     lr_params = {
         "use_scheduler": True,
         "scheduler_type": "one_cycle",
-        "initial_lr": 5e-5,
-        "max_lr": 3e-4,
+        "initial_lr":0.00001,
+        "max_lr": 0.0001,
     }
 
     optimizer_params = {
@@ -80,7 +86,7 @@ for dataset_name in dataset_names:
 
     early_stopping_params = {
         "name": "EarlyStopping",
-        "patience": 1000, # Just take the epoch with best performance, no early stopping
+        "patience": 15, # 1000 = Just take the epoch with best performance, no early stopping
         "min_delta": 1e-3,
     }
 
@@ -262,6 +268,10 @@ for dataset_name in dataset_names:
                 "optimizer_params": optimizer_params,
                 "early_stopping_params": early_stopping_params,
                 'checkpointing_params': None,
+                'use_supcon': use_supcon,
+                'supcon_lambda': supcon_lambda,
+                'supcon_temperature': supcon_temperature,
+                'supcon_mode': supcon_mode,
             }
         }
 
@@ -312,7 +322,11 @@ for dataset_name in dataset_names:
                 exp_name += 'rec_'
             else:
                 exp_name += 'nonrec_'
-
+        #token_supcon
+        if use_supcon:
+            exp_name += f'supcon-{supcon_mode}-lam{supcon_lambda}-temp{supcon_temperature}_'
+        else:
+            exp_name += 'nosupcon_'
         # Transformer
         if transformer_params is not None:
             exp_name += 'tf-'

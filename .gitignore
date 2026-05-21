@@ -2,6 +2,10 @@
 data/*
 *.csv
 *.png
+!experiments/
+!experiments/**
+!experiments/**/figures/
+!experiments/**/figures/*
 
 # deep learning
 *.ckpt
@@ -16,6 +20,5 @@ stamp.egg-info/**
 .vscode/**
 dataset/
 moment/
-experiments/
 embeddings/
 temporary/

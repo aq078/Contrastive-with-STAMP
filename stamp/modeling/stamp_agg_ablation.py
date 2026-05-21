@@ -6,7 +6,7 @@ from stamp.modeling.gated_mlp import BasicGatedMLPBlock
 from stamp.modeling.criss_cross_gated_mlp import CrissCrossGatedMLPBlock
 from stamp.modeling.criss_cross_transformer import CrissCrossTransformerEncoder, CrissCrossTransformerEncoderLayer
 from stamp.modeling.mhap import MultiHeadAttentionPooling
-
+from stamp.modeling.supcon_loss import SupConLoss
 class STAMPAggregationAblation(nn.Module):
     def __init__(
         self,
@@ -25,6 +25,9 @@ class STAMPAggregationAblation(nn.Module):
         gated_mlp_params=None,
         mhap_params=None,
         n_cls_tokens=None,
+        use_supcon=False,
+        supcon_temperature=0.07,
+        supcon_mode="mean_tokens",
         ):
         super().__init__()
         assert input_dim > 0, "input_dim must be positive"
@@ -54,7 +57,16 @@ class STAMPAggregationAblation(nn.Module):
         self.encoder_aggregation = encoder_aggregation
         self.gated_mlp_params = gated_mlp_params
         self.transformer_params = transformer_params
+        ##supcon
+        self.use_supcon = use_supcon
+        self.supcon_temperature = supcon_temperature
+        self.supcon_mode = supcon_mode
 
+        if self.use_supcon:
+            self.supcon_loss_fn = SupConLoss(temperature=self.supcon_temperature)
+        else:
+            self.supcon_loss_fn = None
+        ##
         if self.use_batch_norm:
             self.data_norm = nn.BatchNorm1d(input_dim)
         elif self.use_instance_norm:
@@ -303,7 +315,7 @@ class STAMPAggregationAblation(nn.Module):
             norm=nn.LayerNorm(self.D) if self.transformer_params.get('use_final_norm', True) else None
         )
 
-    def forward(self, x, return_attention):
+    def forward(self, x, return_attention, labels=None):
         # x shape: (B, T, S, moment_embedding_dim) where the batch dimension represents patients
         B, T, S, input_dim = x.shape
 
@@ -338,6 +350,25 @@ class STAMPAggregationAblation(nn.Module):
 
         if self.transformer_params is not None:
             tokens = self.transformer(tokens, src_key_padding_mask=None)  # Shape: (B, N, D)
+        
+        #added supcon
+        supcon_loss = None
+
+        if self.use_supcon and labels is not None:
+
+            if self.supcon_mode == "mean_tokens":
+                supcon_features = tokens.mean(dim=1)  # [B, D]
+                supcon_labels = labels                # [B]
+
+            elif self.supcon_mode == "all_tokens":
+                B, N, D = tokens.shape
+                supcon_features = tokens.reshape(B * N, D)  # [B*N, D]
+                supcon_labels = labels.unsqueeze(1).repeat(1, N).reshape(-1)  # [B*N]
+
+            else:
+                raise ValueError(f"Unknown supcon_mode: {self.supcon_mode}")
+
+            supcon_loss = self.supcon_loss_fn(supcon_features, supcon_labels)
 
         attn_weights = None
 
@@ -367,10 +398,9 @@ class STAMPAggregationAblation(nn.Module):
         # if self.encoder_aggregation != 'token_prediction_averaging':
         #     out = self.classifier(out) # Shape: (B, n_classes)
 
-        if return_attention:
-            return out, attn_weights.detach().cpu() if attn_weights is not None else None
-        else:
-            return out, None
+        attention = attn_weights.detach().cpu() if attn_weights is not None else None
+
+        return out, attention, supcon_loss
     
     def apply_batch_norm(self, x, B, T, S, input_dim):
         # Reshape for batch norm: (B, T, S, input_dim) -> (B*T*S, input_dim)

@@ -44,6 +44,10 @@ class STAMPModelingApproach(ModelingApproach):
         use_gradient_clipping=False,
         label_smoothing=None,
         temporal_channel_selection=None,
+        use_supcon=False,
+        supcon_lambda=0.1,
+        supcon_temperature=0.07,
+        supcon_mode="mean_tokens",
         **kwargs
         ):
 
@@ -78,6 +82,13 @@ class STAMPModelingApproach(ModelingApproach):
         self.n_classes = n_classes
         self.label_smoothing = label_smoothing
         self.temporal_channel_selection = temporal_channel_selection
+        
+        #supcon
+        self.use_supcon = use_supcon
+        self.supcon_lambda = supcon_lambda
+        self.supcon_temperature = supcon_temperature
+        self.supcon_mode = supcon_mode
+        ###
         if self.temporal_channel_selection is not None:
             self.n_temporal_channels = len(self.temporal_channel_selection)
             
@@ -115,6 +126,9 @@ class STAMPModelingApproach(ModelingApproach):
             final_classifier_params=self.final_classifier_params,
             n_classes=self.n_classes,
             n_cls_tokens=self.n_cls_tokens,
+            use_supcon=self.use_supcon,
+            supcon_temperature=self.supcon_temperature,
+            supcon_mode=self.supcon_mode,
         )
 
         flops = FlopCountAnalysis(self.model, (torch.randn(self.train_batch_size, n_temporal_channels, n_spatial_channels, self.input_dim), False))
@@ -440,7 +454,14 @@ class STAMPModelingApproach(ModelingApproach):
         if mode == 'train':
             self.model.optimizer.zero_grad()
         return_attention = (mode == 'test' and self.store_attention_weights)
-        logits, attn_weights = self.model(x=seq_batch, return_attention=return_attention) # Binary shape: (batch_size, 1), Multiclass shape: (batch_size, n_classes)
+        # logits, attn_weights = self.model(x=seq_batch, return_attention=return_attention) # Baseline version. Binary shape: (batch_size, 1), Multiclass shape: (batch_size, n_classes)
+        if label_batch is not None:
+            label_batch = label_batch.to(self.device) # Shape: (batch_size)
+        logits, attn_weights, supcon_loss = self.model(
+                x=seq_batch,
+                return_attention=return_attention,
+                labels=label_batch
+            ) #token supCon version
         if self.problem_type == 'binary':
             logits = logits.squeeze()  # Remove class dimension for binary
 
@@ -449,8 +470,14 @@ class STAMPModelingApproach(ModelingApproach):
             logits = logits.unsqueeze(0)
 
         if criterion is not None:
-            label_batch = label_batch.to(self.device) # Shape: (batch_size)
-            loss = criterion(logits, label_batch) # Single value
+            # label_batch = label_batch.to(self.device) # Shape: (batch_size)
+            # loss = criterion(logits, label_batch) # Single value (baseline version)
+            # token SupCon version
+            ce_loss = criterion(logits, label_batch)
+            loss = ce_loss
+
+            if supcon_loss is not None:
+                loss = loss + self.supcon_lambda * supcon_loss
         else:
             loss = None
 
