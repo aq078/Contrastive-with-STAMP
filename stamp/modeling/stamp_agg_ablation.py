@@ -38,7 +38,9 @@ class STAMPAggregationAblation(nn.Module):
     "mean_feature",
     "max_feature",
     "mean_logits",
-    "max_logits"], \
+    "max_logits",
+    "token_level",
+    "patch_level",], \
                                     f"Unknown encoder_aggregation: {encoder_aggregation}"
         
         assert use_batch_norm + use_instance_norm < 2, 'use_batch_norm and use_instance_norm should not both be True.'
@@ -78,7 +80,7 @@ class STAMPAggregationAblation(nn.Module):
             
             initial_proj_type = initial_proj_params['type']
             initial_proj_dropout_rate = initial_proj_params['dropout_rate']
-            self.dropout = nn.Dropout(initial_proj_dropout_rate)
+        
 
             if initial_proj_type == 'reduced':
                 initial_proj_hidden_dim = initial_proj_params['hidden_dim']
@@ -147,7 +149,7 @@ class STAMPAggregationAblation(nn.Module):
             
 
         # Initialize final classifier
-        if self.encoder_aggregation in ["mean_logits", "max_logits"]:
+        if self.encoder_aggregation in ["mean_logits", "max_logits", "token_level", "patch_level", ]:
             self.token_classifier = nn.Linear(self.D, self.n_classes)
             self.classifier = None
         else:
@@ -315,7 +317,7 @@ class STAMPAggregationAblation(nn.Module):
             norm=nn.LayerNorm(self.D) if self.transformer_params.get('use_final_norm', True) else None
         )
 
-    def forward(self, x, return_attention, labels=None):
+    def forward(self, x, return_attention, labels=None, token_labels=None,patch_labels=None):
         # x shape: (B, T, S, moment_embedding_dim) where the batch dimension represents patients
         B, T, S, input_dim = x.shape
 
@@ -354,21 +356,59 @@ class STAMPAggregationAblation(nn.Module):
         #added supcon
         supcon_loss = None
 
-        if self.use_supcon and labels is not None:
+        if self.use_supcon:
 
             if self.supcon_mode == "mean_tokens":
                 supcon_features = tokens.mean(dim=1)  # [B, D]
                 supcon_labels = labels                # [B]
 
-            elif self.supcon_mode == "all_tokens":
+            elif self.supcon_mode == "all_tokens": #per token supcon
                 B, N, D = tokens.shape
                 supcon_features = tokens.reshape(B * N, D)  # [B*N, D]
                 supcon_labels = labels.unsqueeze(1).repeat(1, N).reshape(-1)  # [B*N]
+            elif self.supcon_mode == "token_level":
 
+                if token_labels is None:
+                    supcon_loss = None
+                else:
+                    B, N, D = tokens.shape
+                    supcon_features = tokens.reshape(B * N, D)
+                    supcon_labels = token_labels.reshape(B * N).to(tokens.device)
+
+                    valid = supcon_labels >= 0
+                    supcon_features = supcon_features[valid]
+                    supcon_labels = supcon_labels[valid]
+
+                    supcon_loss = self.supcon_loss_fn(
+                        supcon_features,
+                        supcon_labels
+                    )
+            elif self.supcon_mode == "patch_level":
+
+                assert patch_labels is not None
+
+                B, N, D = tokens.shape
+                T = self.n_temporal_channels
+                S = self.n_spatial_channels
+
+                tokens_4d = tokens.reshape(B, T, S, D)
+                patch_features = tokens_4d.max(dim=2).values  # [B, 8, D] #tokens_4d.mean(dim=2)
+
+                supcon_features = patch_features.reshape(B * T, D)
+                supcon_labels = patch_labels.reshape(B * T).to(tokens.device)
+
+                valid = supcon_labels >= 0
+
+                supcon_features = supcon_features[valid]
+                supcon_labels = supcon_labels[valid]
+
+                supcon_loss = self.supcon_loss_fn(
+                    supcon_features,
+                    supcon_labels
+                )
             else:
                 raise ValueError(f"Unknown supcon_mode: {self.supcon_mode}")
 
-            supcon_loss = self.supcon_loss_fn(supcon_features, supcon_labels)
 
         attn_weights = None
 
@@ -391,7 +431,20 @@ class STAMPAggregationAblation(nn.Module):
         elif self.encoder_aggregation == "max_logits":
             token_logits = self.token_classifier(tokens)
             out = token_logits.max(dim=1).values
+        elif self.encoder_aggregation == "patch_level":
 
+            tokens_4d = tokens.reshape(
+                B,
+                self.n_temporal_channels,
+                self.n_spatial_channels,
+                self.D,
+            )  # [B, 8, 99, D]
+
+            patch_features = tokens_4d.max(dim=2).values # [B, 8, D]
+
+            out = self.token_classifier(patch_features)  # [B, 8, 2]
+        elif self.encoder_aggregation == "token_level":
+            out = self.token_classifier(tokens) # [B, 792, 2]
         else:
             raise ValueError(f"Unknown encoder_aggregation method: {self.encoder_aggregation}")
 

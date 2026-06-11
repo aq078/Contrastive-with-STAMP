@@ -14,7 +14,7 @@ for dataset_name in dataset_names:
     exp_dir = experiments_dir + f'/{dataset_name}'
     embedding_model_name = 'MOMENT-1-large'
     embedding_models_dir = local_config.moment_models_dir
-    n_random_seeds = 5
+    n_random_seeds = 1
 
     temporal_channel_selection = None
     training_data_ratio = 1.0
@@ -28,8 +28,8 @@ for dataset_name in dataset_names:
 
     dropout_rate = 0.3
 
-    n_epochs = 100
-    train_batch_size = 64
+    n_epochs = 100#100
+    train_batch_size = 4
     test_batch_size = 64
     min_epoch = 0
 
@@ -52,7 +52,7 @@ for dataset_name in dataset_names:
     tr_dr_values = [dropout_rate] if tr_type is not None else None
 
     # Encoder aggregation
-    encoder_aggregation = 'max_logits'  # Options: "attention_pooling"(baseline MHAP),"mean_feature", "max_feature", "mean_logits", "max_logits"
+    encoder_aggregation = 'patch_level'  # Options: "token_level(skip aggregation), attention_pooling"(baseline MHAP),"mean_feature", "max_feature", "mean_logits", "max_logits"
     mhap_A_values = [4] if encoder_aggregation == 'attention_pooling' else None
     mhap_dr_values = [dropout_rate] if encoder_aggregation == 'attention_pooling' else None
     mhap_Q_values = [8] if encoder_aggregation == 'attention_pooling' else None
@@ -61,14 +61,14 @@ for dataset_name in dataset_names:
 
     #supcon
     use_supcon = True
-    supcon_lambda = 0.01
+    supcon_lambda = 0.001
     supcon_temperature = 0.07
-    supcon_mode = "all_tokens" #mean_tokens: averaged token embedding; all_tokens: each token independently
+    supcon_mode = "patch_level" #mean_tokens: averaged token embedding; all_tokens: each token independently; token_level; patch_level
     ##
     initial_proj_params = {
         'type': 'full',
         'dropout_rate': dropout_rate,
-    }
+    } 
 
     lr_params = {
         "use_scheduler": True,
@@ -86,7 +86,7 @@ for dataset_name in dataset_names:
 
     early_stopping_params = {
         "name": "EarlyStopping",
-        "patience": 15, # 1000 = Just take the epoch with best performance, no early stopping
+        "patience": 1000, # 1000 = Just take the epoch with best performance, no early stopping
         "min_delta": 1e-3,
     }
 
@@ -277,10 +277,10 @@ for dataset_name in dataset_names:
 
         # Construct exp_name based on config
         if temporal_channel_selection is None:
-            exp_name = f'tokenSupCon_{embedding_model_name}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
+            exp_name = f'0.375_patchLevel_{embedding_model_name}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
         else:
             tcs_str = '-'.join([str(tc) for tc in temporal_channel_selection])
-            exp_name = f'tokenSupCon_{embedding_model_name}_tcs{tcs_str}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
+            exp_name = f'0.375_patchLevel_{embedding_model_name}_tcs{tcs_str}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
 
         # Handle initial projection
         if initial_proj_params is not None:
@@ -370,6 +370,7 @@ for dataset_name in dataset_names:
         exp_name += f'tdr{training_data_ratio}'
 
         if os.path.exists(experiments_dir + f'/{dataset_name}/{exp_name}'):
+            print(f"Skipping existing experiment: {exp_name}")
             continue
 
         # Create a copy of early_stopping_params for each experiment

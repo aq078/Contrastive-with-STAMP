@@ -87,14 +87,20 @@ class CustomLMDBPickleDataset(Dataset):
         data = pair['sample']
         label = pair['label']
 
+        token_comp_labels = pair['token_comp_labels']
+        temporal_token_comp_labels = pair['temporal_token_comp_labels']
         sample_key = key
 
-        return data/100, label, sample_key
+        return data/100, label, token_comp_labels, temporal_token_comp_labels, sample_key
 
     def collate(self, batch, embedding_model_name=None):
-        x_data = np.array([x[0] for x in batch]) # Shape: (batch_size, n_spatial_channels, n_temporal_channels, orig_seq_len)
-        y_label = np.array([x[1] for x in batch]) # Shape: (batch_size,)
-        sample_keys = [x[2] for x in batch] # List of sample keys
+        x_data = np.array([x[0] for x in batch])
+
+        y_label = np.array([x[1] for x in batch])
+
+        token_comp_labels = np.array([x[2] for x in batch])
+        temporal_token_comp_labels = np.array([x[3] for x in batch])
+        sample_keys = [x[4] for x in batch]
 
         # print(f'x_data shape: {x_data.shape}')
         # print(f'y_label shape: {y_label.shape}')
@@ -113,17 +119,23 @@ class CustomLMDBPickleDataset(Dataset):
 
         batch_size, n_spatial_channels, n_temporal_channels, seq_len = x_data.shape
         if self.reshape_data:
-            x_data = x_data.reshape(-1, x_data.shape[-1]) # Reshape to (batch_size * n_spatial_channels * n_temporal_channels, seq_len)
-            x_data = np.expand_dims(x_data, axis=1) # Shape: (batch_size * n_spatial_channels * n_temporal_channels, 1, seq_len)
+            B, J, C, L = x_data.shape  # [B, 33, 3, 64]
 
-            # Make sure that orig and x_data match up correctly in values
-            if self.check_reshaped_data:
-                for i in range(batch_size):
-                    for j in range(n_spatial_channels):
-                        for k in range(n_temporal_channels):
-                            assert np.all(orig[i, j, k, :] == x_data[i * n_spatial_channels * n_temporal_channels + j * n_temporal_channels + k, :]), f"Mismatch at {i}, {j}, {k}"
+            patch_len = 8
+            assert L % patch_len == 0
+            T = L // patch_len          # 8
+            S = J * C                   # 99
 
-        trial_metadata = self._create_metadata_vectorized(
+            x_data = x_data.reshape(B, S, T, patch_len)       # [B, 99, 8, 8]
+            x_data = x_data.transpose(0, 2, 1, 3)             # [B, 8, 99, 8]
+            x_data = x_data.reshape(B * T * S, 1, patch_len)  # [B*8*99, 1, 8]
+            
+        if self.reshape_data:
+            trial_metadata = self._create_patch_metadata_vectorized(
+                B, T, S, sample_keys, y_label
+            )
+        else:
+            trial_metadata = self._create_metadata_vectorized(
                 batch_size, n_spatial_channels, n_temporal_channels, sample_keys, y_label
             )
 
@@ -136,7 +148,12 @@ class CustomLMDBPickleDataset(Dataset):
             x_data = x_data.reshape(batch_size, n_spatial_channels, n_temporal_channels * seq_len) # Shape: (batch_size, n_spatial_channels, n_temporal_channels * seq_len)
             x_data = np.expand_dims(x_data, axis=1)  # Shape: (batch_size, 1, n_spatial_channels, n_temporal_channels * seq_len)
 
-        return to_tensor(x_data), to_tensor(y_label).long(), trial_metadata
+        return (to_tensor(x_data),
+                to_tensor(y_label).long(),
+                to_tensor(token_comp_labels).long(),
+                to_tensor(temporal_token_comp_labels).long(),
+                trial_metadata
+            )
 
     def _create_metadata_vectorized(self, batch_size, n_spatial_channels, n_temporal_channels, sample_keys, y_label):
         """Vectorized metadata creation to avoid nested loops"""
@@ -162,7 +179,7 @@ class CustomLMDBPickleDataset(Dataset):
         return metadata
 
     def collate_with_mask(dataset, batch, orig_seq_len, embedding_model_name=None):
-        x_data, y_label, trial_metadata = dataset.collate(batch)
+        x_data, y_label, token_comp_labels, temporal_token_comp_labels,trial_metadata = dataset.collate(batch, embedding_model_name=embedding_model_name)
         # X_data shape: (batch_size, 1, seq_len)
         # y_label shape: (batch_size,)
         
@@ -194,7 +211,43 @@ class CustomLMDBPickleDataset(Dataset):
             # Make mask shape (batch_size, seq_len, 1)
             mask = mask.unsqueeze(-1)
 
-        return x_data, y_label, mask, trial_metadata
+        return x_data, y_label, token_comp_labels, temporal_token_comp_labels, mask, trial_metadata
+    def _create_patch_metadata_vectorized(self, batch_size, n_patches, n_channels, sample_keys, y_label):
+        total_elements = batch_size * n_patches * n_channels
+
+        batch_indices = np.repeat(np.arange(batch_size), n_patches * n_channels)
+        patch_indices = np.tile(
+            np.repeat(np.arange(n_patches), n_channels),
+            batch_size
+        )
+        channel_indices = np.tile(
+            np.arange(n_channels),
+            batch_size * n_patches
+        )
+
+        sample_keys_arr = np.array(sample_keys, dtype=object)[batch_indices]
+        y_label_arr = np.array(y_label)[batch_indices]
+
+        metadata = np.rec.fromarrays(
+            [
+                sample_keys_arr,
+                batch_indices,
+                patch_indices,
+                channel_indices,
+                y_label_arr,
+                np.arange(total_elements),
+            ],
+            names=[
+                "sample_key",
+                "batch_idx",
+                "patch_idx",
+                "channel_idx",
+                "original_label",
+                "reshaped_idx",
+            ],
+        )
+
+        return pd.DataFrame.from_records(metadata).to_dict(orient="records")
 
 class LoadDataset(object):
     def __init__(self, params):
@@ -282,3 +335,4 @@ class LoadDataset(object):
             ),
         }
         return data_loader
+

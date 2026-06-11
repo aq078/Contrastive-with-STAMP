@@ -6,6 +6,7 @@ from functools import partial
 import json
 from CBraMod.utils.util import to_tensor
 from stamp.datasets.utils import get_dataset_params
+import pickle
 
 '''
 This class should work with the processed LMDBs for TUAB, TUEV, ISRUC, and CHB-MIT
@@ -83,26 +84,34 @@ class CustomLMDBNumpyDataset(Dataset):
         key = self.keys[idx]
         with self.db.begin(write=False) as txn:
             key = self.keys[idx]
-            data_bytes = txn.get(key)
+            value_bytes = txn.get(key)
 
-            if data_bytes is None:
+            if value_bytes is None:
                 raise IndexError(f"Sample {idx} not found")
 
-            # Extract label from key
-            key_str = key.decode()
-            parts = key_str.split('_')
-            label = int(parts[-1][1:])  # Remove 'y' prefix
+            pair = pickle.loads(value_bytes)
 
-            # Reconstruct signal
-            sample = np.frombuffer(data_bytes, dtype=np.float64) # Shape: (n_spatial_channels * n_temporal_channels * orig_seq_len,)
-            sample = sample.reshape(self.n_spatial_channels, self.n_temporal_channels, self.orig_seq_len) # Shape: (n_spatial_channels, n_temporal_channels, orig_seq_len)
+            sample = pair["sample"]
+            label = pair["label"]
 
-        return sample/100, label, key
+            token_comp_labels = pair.get("token_comp_labels", None)
+                    
+            S = self.n_spatial_channels * self.n_temporal_channels
+            N = len(token_comp_labels)
+            T = N // S
+            embedding_dim = sample.size // N
+
+            sample = sample.reshape(T, S, embedding_dim)
+        return sample/100, label, token_comp_labels, key
 
     def collate(self, batch):
-        x_data = np.array([x[0] for x in batch]) # Shape: (batch_size, n_spatial_channels, n_temporal_channels, orig_seq_len)
-        y_label = np.array([x[1] for x in batch]) # Shape: (batch_size,)
-        sample_keys = [x[2] for x in batch] # List of sample keys
+        x_data = np.array([x[0] for x in batch])
+
+        y_label = np.array([x[1] for x in batch])
+
+        token_comp_labels = np.array([x[2] for x in batch])
+
+        sample_keys = [x[3] for x in batch]
 
         # Handle padding
         if self.pad_to_len and x_data.shape[-1] < self.pad_to_len:
@@ -119,10 +128,14 @@ class CustomLMDBNumpyDataset(Dataset):
 
             sample_keys = np.array(sample_keys, dtype=object)[batch_indices].tolist() # Shape: (batch_size * n_spatial_channels * n_temporal_channels)
 
-        return to_tensor(x_data), to_tensor(y_label).long(), sample_keys
+        return (to_tensor(x_data),
+                to_tensor(y_label).long(),
+                to_tensor(token_comp_labels).long(),
+                sample_keys
+            )
 
     def collate_with_mask(dataset, batch, orig_seq_len):
-        x_data, y_label, sample_keys = dataset.collate(batch)
+        x_data, y_label, token_comp_labels, sample_keys = dataset.collate(batch)
         # X_data shape: (batch_size, 1, seq_len)
         # y_label shape: (batch_size,)
 
@@ -132,7 +145,7 @@ class CustomLMDBNumpyDataset(Dataset):
         pad_width = dataset.pad_to_len - orig_seq_len
         mask[:, -pad_width:] = 0
 
-        return x_data, y_label, mask, sample_keys
+        return x_data, y_label, token_comp_labels, mask, sample_keys
 
 class LoadDataset(object):
     def __init__(self, params):

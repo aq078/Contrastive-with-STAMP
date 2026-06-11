@@ -2,6 +2,8 @@ import os
 import lmdb
 import numpy as np
 import json
+import pickle
+
 
 class LMDBWriter:
     def __init__(self, lmdb_path, map_size):
@@ -30,22 +32,29 @@ class LMDBWriter:
         self.txn = self.env.begin(write=True)
         return self
 
-    def write_sample(self, sample, label, filename, dtype):
-        """Write a single sample to LMDB
+    def write_sample(self, sample, label, filename, dtype, token_comp_labels=None, temporal_token_comp_labels=None,):
+        sample = sample.astype(dtype)
 
-        Args:
-            signal: numpy array of EEG signal data
-            metadata: dict containing label, offending_channel, filename, etc.
-        """
+        value = {
+            "sample": sample,
+            "label": int(label),
+        }
 
-        sample_bytes = sample.astype(dtype).tobytes()
+        if token_comp_labels is not None:
+            value["token_comp_labels"] = np.asarray(token_comp_labels, dtype=np.int64)
+        if temporal_token_comp_labels is not None:
+            value["temporal_token_comp_labels"] = np.asarray(
+                temporal_token_comp_labels,
+                dtype=np.int64
+            )
+        value_bytes = pickle.dumps(value, protocol=pickle.HIGHEST_PROTOCOL)
+
         key = f'{filename}_{self.count:08d}_y{label}'.encode()
-        self.txn.put(key, sample_bytes)
+        self.txn.put(key, value_bytes)
         self.keys.append(key)
 
         self.count += 1
 
-        # Commit every 1000 samples to avoid memory issues
         if self.count % 1000 == 0:
             self.txn.commit()
             self.txn = self.env.begin(write=True)

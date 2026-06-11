@@ -9,7 +9,7 @@ local_config = get_local_config()
 dataset_names = ['sere']
 
 exp_names = [
-'tokenSupCon_MOMENT-1-large_nrs5_ne100_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_supcon-all_tokens-lam0.01-temp0.07_ea-max_logits_ls0.1gcT_inorm_tdr1.0'
+'0.375_patchLevel_MOMENT-1-large_nrs1_ne100_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_supcon-patch_level-lam0.001-temp0.07_ea-patch_level_ls0.1gcT_inorm_tdr1.0'
 ]
 
 experiments_dir = local_config.tsfm_experiments_dir

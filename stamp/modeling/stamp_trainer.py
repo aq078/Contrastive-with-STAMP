@@ -131,8 +131,25 @@ class STAMPModelingApproach(ModelingApproach):
             supcon_mode=self.supcon_mode,
         )
 
-        flops = FlopCountAnalysis(self.model, (torch.randn(self.train_batch_size, n_temporal_channels, n_spatial_channels, self.input_dim), False))
-        self.total_flops = flops.total()
+        try:
+            flops = FlopCountAnalysis(
+                self.model,
+                (
+                    torch.randn(
+                        self.train_batch_size,
+                        self.n_temporal_channels,
+                        self.n_spatial_channels,
+                        self.input_dim
+                    ),
+                    False,
+                    None,
+                    None,
+                )
+            )
+            self.total_flops = flops.total()
+        except Exception as e:
+            print(f"Skipping FLOPs analysis because tracing failed: {e}")
+            self.total_flops = None
 
         self.device = torch.device(device)
         self.model.to(self.device)
@@ -150,9 +167,13 @@ class STAMPModelingApproach(ModelingApproach):
 
         # Initialize the criterion
         if self.problem_type == 'binary':
-            criterion = nn.BCEWithLogitsLoss()
+            criterion = nn.BCEWithLogitsLoss(reduction="none")
         elif self.problem_type == 'multiclass':
-            criterion = nn.CrossEntropyLoss(label_smoothing=self.label_smoothing)
+            class_weights = torch.tensor([2.3, 1.0], dtype=torch.float32, device=self.device)
+            criterion = nn.CrossEntropyLoss(
+                weight=class_weights,
+                label_smoothing=self.label_smoothing
+            )
         elif self.problem_type == 'regression':
             criterion = nn.MSELoss()
         else:
@@ -193,7 +214,7 @@ class STAMPModelingApproach(ModelingApproach):
             train_preds = []
             train_labels = []
             print('Training...')
-            for seq_batch, label_batch, sample_key_batch in train_iterator:
+            for seq_batch, label_batch, token_label_batch, patch_label_batch, sample_key_batch in train_iterator:
 
                 if self.problem_type == 'binary':
                     label_batch = label_batch.to(torch.float32)
@@ -203,11 +224,13 @@ class STAMPModelingApproach(ModelingApproach):
                     pass
 
                 probs, preds, main_loss, _ = self.evaluate_batch(
-                    seq_batch=seq_batch,
-                    label_batch=label_batch,
-                    mode='train',
-                    criterion=criterion
-                )
+                                                        seq_batch=seq_batch,
+                                                        label_batch=label_batch,
+                                                        token_label_batch=token_label_batch,
+                                                        patch_label_batch = patch_label_batch,  
+                                                        mode='train',
+                                                        criterion=criterion
+                                                    )
 
                 main_loss.backward()
                 if self.use_gradient_clipping:
@@ -217,10 +240,16 @@ class STAMPModelingApproach(ModelingApproach):
                 if self.lr_params['use_scheduler'] and self.lr_params['scheduler_type'] == 'one_cycle':
                     self.scheduler.step()
 
-                if self.problem_type == 'binary':
+                if self.problem_type == 'binary' and probs is not None:
                     train_probs.append(probs.detach().cpu())
                 train_preds.append(preds.detach().cpu())
-                train_labels.append(label_batch.detach().cpu())
+                
+                if self.encoder_aggregation == "patch_level":
+                    train_labels.append(patch_label_batch.reshape(-1).detach().cpu())
+                elif self.encoder_aggregation == "token_level":
+                    train_labels.append(token_label_batch.reshape(-1).detach().cpu())
+                else:
+                    train_labels.append(label_batch.detach().cpu())
 
                 # NOTE: We only call .item() after the backward pass because it removes the gradients
                 epoch_train_main_loss += main_loss.item()
@@ -233,12 +262,12 @@ class STAMPModelingApproach(ModelingApproach):
             if self.device.type == 'cuda':
                 seq_batch = seq_batch.cpu()
                 label_batch = label_batch.cpu()
-                probs = probs.cpu() if self.problem_type == 'binary' else None
+                probs = probs.cpu() if self.problem_type == 'binary' and probs is not None else None
                 main_loss = main_loss.cpu()
                 del seq_batch, label_batch, probs
                 torch.cuda.empty_cache()
 
-            self.evaluate_split(split_name='train', truths=torch.cat(train_labels), preds=torch.cat(train_preds), probs=torch.cat(train_probs) if self.problem_type == 'binary' else None)
+            self.evaluate_split(split_name='train', truths=torch.cat(train_labels), preds=torch.cat(train_preds), probs=torch.cat(train_probs) if len(train_probs) > 0 else None)
             self.train_main_losses.append(train_main_loss)
 
             # Validation
@@ -248,7 +277,7 @@ class STAMPModelingApproach(ModelingApproach):
             val_preds = []
             val_labels = []
             with torch.no_grad():
-                for seq_batch, label_batch, sample_key_batch in val_iterator:
+                for seq_batch, label_batch, token_label_batch, patch_label_batch, sample_key_batch in val_iterator:
 
                     if self.problem_type == 'binary':
                         label_batch = label_batch.to(torch.float32)
@@ -260,18 +289,28 @@ class STAMPModelingApproach(ModelingApproach):
                     probs, preds, main_loss, _ = self.evaluate_batch(
                         seq_batch=seq_batch,
                         label_batch=label_batch,
+                        token_label_batch=token_label_batch,
+                        patch_label_batch=patch_label_batch,
                         mode='val',
                         criterion=criterion
                     )
 
-                    val_probs.append(probs.cpu())
+                    if probs is not None:
+                        val_probs.append(probs.cpu())
+
                     val_preds.append(preds.cpu())
-                    val_labels.append(label_batch.cpu())
+
+                    if self.encoder_aggregation == "patch_level":
+                        val_labels.append(patch_label_batch.reshape(-1).detach().cpu())
+                    elif self.encoder_aggregation == "token_level":
+                        val_labels.append(token_label_batch.reshape(-1).cpu())
+                    else:
+                        val_labels.append(label_batch.cpu())
                     epoch_val_main_loss += main_loss.item()
 
             val_main_loss = epoch_val_main_loss / len(val_data_loader)
 
-            self.evaluate_split(split_name='val', truths=torch.cat(val_labels), preds=torch.cat(val_preds), probs=torch.cat(val_probs))
+            self.evaluate_split(split_name='val', truths=torch.cat(val_labels), preds=torch.cat(val_preds), probs=torch.cat(val_probs) if len(val_probs) > 0 else None)
             self.val_main_losses.append(val_main_loss)
 
             print(f'train_main_loss: {train_main_loss:.4f}, val_loss: {val_main_loss:.4f}')
@@ -294,7 +333,7 @@ class STAMPModelingApproach(ModelingApproach):
             if self.device.type == 'cuda':
                 seq_batch = seq_batch.cpu()
                 label_batch = label_batch.cpu()
-                probs = probs.cpu()
+                probs = probs.cpu() if self.problem_type == 'binary' and probs is not None else None
                 main_loss = main_loss.cpu()
                 del seq_batch, label_batch, probs, train_probs, train_labels, val_probs, val_labels
                 torch.cuda.empty_cache()
@@ -317,10 +356,7 @@ class STAMPModelingApproach(ModelingApproach):
             del train_data_loader, val_data_loader, train_iterator, val_iterator
             torch.cuda.empty_cache()
 
-    def predict(
-        self,
-        test_data_loader
-        ):
+    def predict(self, test_data_loader):
 
         self.model.eval()
         attn_weights_list = []
@@ -330,12 +366,14 @@ class STAMPModelingApproach(ModelingApproach):
         test_labels = []
         inference_run_times = []
         with torch.no_grad():
-            for seq_batch, label_batch, sample_key_batch in test_data_loader:
+            for seq_batch, label_batch, token_label_batch, patch_label_batch, sample_key_batch in test_data_loader:
                 inference_start_time = time.time()
 
                 probs, preds, _, attn_weights = self.evaluate_batch(
                     seq_batch=seq_batch,
                     label_batch=None,
+                    token_label_batch=token_label_batch,
+                    patch_label_batch=patch_label_batch,
                     mode='test',
                     criterion=None
                 )
@@ -347,8 +385,40 @@ class STAMPModelingApproach(ModelingApproach):
                 inference_run_times.append(inference_end_time - inference_start_time)
                 test_probs.append(probs)
                 test_preds.append(preds)
-                test_sample_keys.extend(sample_key_batch)
-                test_labels.extend(label_batch.numpy())
+                
+                if self.encoder_aggregation == "patch_level":             
+                    valid = patch_label_batch >= 0
+
+                    for i, key in enumerate(sample_key_batch):
+                        key = key.decode() if isinstance(key, bytes) else str(key)
+
+                        for t_idx in range(self.n_temporal_channels):
+                            if valid[i, t_idx]:
+                                test_sample_keys.append(f"{key}_t{t_idx}")
+
+                    test_labels.extend(patch_label_batch[valid].numpy())
+                elif self.encoder_aggregation == "token_level":
+                    
+                    #test_sample_keys
+                    n_tokens = self.n_temporal_channels * self.n_spatial_channels
+
+                    for key in sample_key_batch:
+                        key = key.decode() if isinstance(key, bytes) else str(key)
+
+                        for token_idx in range(n_tokens):
+                            t_idx = token_idx // self.n_spatial_channels
+                            s_idx = token_idx % self.n_spatial_channels
+                            test_sample_keys.append(f"{key}_t{t_idx}_s{s_idx}")
+                    #test_labels
+                    valid = token_label_batch >= 0
+                    test_labels.extend(token_label_batch[valid].numpy())
+                else:
+                    #test_sample_keys
+                    test_sample_keys.extend(sample_key_batch)
+                    
+                    #test_labels
+                    test_labels.extend(label_batch.numpy())
+                
 
         if len(attn_weights_list) != 0:
             attn_weights = torch.cat(attn_weights_list).squeeze().cpu()
@@ -363,9 +433,12 @@ class STAMPModelingApproach(ModelingApproach):
             prob_df.index = test_sample_keys
             prob_df.columns = ['prob']
         elif self.problem_type == 'multiclass':
-            prob_df= pd.DataFrame(torch.cat(test_probs).cpu().numpy())
-            prob_df.index = test_sample_keys
-            prob_df.columns = [f'prob_class_{i}' for i in range(prob_df.shape[1])]
+            if len(test_probs) > 0:
+                prob_df = pd.DataFrame(torch.cat(test_probs).cpu().numpy())
+                prob_df.index = test_sample_keys
+                prob_df.columns = [f'prob_class_{i}' for i in range(prob_df.shape[1])]
+            else:
+                prob_df = None
         else:
             prob_df = None
 
@@ -441,13 +514,7 @@ class STAMPModelingApproach(ModelingApproach):
 
         return train_iterator, val_iterator
 
-    def evaluate_batch(
-        self,
-        seq_batch,
-        label_batch,
-        mode,
-        criterion
-        ):
+    def evaluate_batch(self, seq_batch, label_batch, token_label_batch, patch_label_batch, mode, criterion):
         # Move tensors to the specified device
         seq_batch = seq_batch.to(self.device) # Shape: (batch_size, max_hr, n_channels, n_features)
 
@@ -457,12 +524,18 @@ class STAMPModelingApproach(ModelingApproach):
         # logits, attn_weights = self.model(x=seq_batch, return_attention=return_attention) # Baseline version. Binary shape: (batch_size, 1), Multiclass shape: (batch_size, n_classes)
         if label_batch is not None:
             label_batch = label_batch.to(self.device) # Shape: (batch_size)
+        if token_label_batch is not None:
+            token_label_batch = token_label_batch.to(self.device)
+        if patch_label_batch is not None:
+            patch_label_batch = patch_label_batch.to(self.device)
         logits, attn_weights, supcon_loss = self.model(
                 x=seq_batch,
                 return_attention=return_attention,
-                labels=label_batch
+                labels=label_batch,
+                token_labels=token_label_batch,
+                patch_labels=patch_label_batch,
             ) #token supCon version
-        if self.problem_type == 'binary':
+        if self.problem_type == 'binary' and self.encoder_aggregation != "token_level":
             logits = logits.squeeze()  # Remove class dimension for binary
 
         # Make sure each tensor has atleast 1 dim to prevent error
@@ -470,10 +543,31 @@ class STAMPModelingApproach(ModelingApproach):
             logits = logits.unsqueeze(0)
 
         if criterion is not None:
-            # label_batch = label_batch.to(self.device) # Shape: (batch_size)
-            # loss = criterion(logits, label_batch) # Single value (baseline version)
-            # token SupCon version
-            ce_loss = criterion(logits, label_batch)
+            if self.encoder_aggregation == "patch_level":
+                B, T, C = logits.shape
+
+                logits_flat = logits.reshape(B * T, C)
+                labels_flat = patch_label_batch.reshape(B * T).long()
+
+                valid = labels_flat >= 0
+
+                ce_loss = criterion(logits_flat[valid], labels_flat[valid])
+            elif self.encoder_aggregation == "token_level":
+                B, N, C = logits.shape
+
+                logits_flat = logits.reshape(B * N, C)
+                labels_flat = token_label_batch.reshape(B * N).long()
+
+                valid = labels_flat >= 0
+
+                ce_loss = criterion(
+                    logits_flat[valid],
+                    labels_flat[valid]
+                )
+
+            else:
+                ce_loss = criterion(logits, label_batch)
+
             loss = ce_loss
 
             if supcon_loss is not None:
@@ -482,12 +576,33 @@ class STAMPModelingApproach(ModelingApproach):
             loss = None
 
         # Run outputs through sigmoid to get probabilities
-        if self.problem_type == 'binary':
-            probs = torch.sigmoid(logits)
-            preds = torch.gt(probs, 0.5).long()
-        elif self.problem_type == 'multiclass':
-            probs = torch.softmax(logits, dim=-1)  # Convert logits to probabilities
-            preds = torch.argmax(logits, dim=-1)   # Get predicted class indices
+        # Prediction handling
+        if self.encoder_aggregation == "patch_level":
+            probs = torch.softmax(logits, dim=-1)   # [B, 8, 2]
+            preds = torch.argmax(logits, dim=-1)    # [B, 8]
+
+            valid = patch_label_batch >= 0
+
+            preds = preds[valid]
+            probs = probs[valid]
+        elif self.encoder_aggregation == "token_level":
+
+            probs = torch.softmax(logits, dim=-1)
+            preds = torch.argmax(logits, dim=-1)
+
+            valid = token_label_batch >= 0
+
+            preds = preds[valid]
+            probs = probs[valid]
+
+        else:
+            if self.problem_type == 'binary':
+                probs = torch.sigmoid(logits)
+                preds = torch.gt(probs, 0.5).long()
+
+            elif self.problem_type == 'multiclass':
+                probs = torch.softmax(logits, dim=-1)
+                preds = torch.argmax(logits, dim=-1)
 
         return probs, preds, loss, attn_weights
 

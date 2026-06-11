@@ -5,6 +5,7 @@ import lmdb
 import json
 from CBraMod.utils.util import to_tensor
 from stamp.datasets.utils import get_dataset_params
+import pickle
 
 class CustomLMDBEmbeddingDataset(Dataset):
     def __init__(
@@ -94,6 +95,8 @@ class CustomLMDBEmbeddingDataset(Dataset):
     def collate(self, batch_indices):
         x_data = [] # Shape: (batch_size, n_spatial_channels * n_temporal_channels * embedding_dim)
         y_labels = [] # Shape: (batch_size, n_classes) for multiclass; (batch_size,) for binary
+        token_comp_labels_list = []
+        temporal_token_comp_labels_list=[]
         sample_keys = [] # List of sample keys
 
         # Single transaction for the entire batch
@@ -106,31 +109,26 @@ class CustomLMDBEmbeddingDataset(Dataset):
                 if data_bytes is None:
                     raise IndexError(f"Sample {idx} not found")
                 
-                sample = np.frombuffer(data_bytes, dtype=np.float32)
+                pair = pickle.loads(data_bytes)
+
+                sample = pair["sample"]                  # [8, 99, 1024]
+                label = pair["label"]
+                token_comp_labels = pair["token_comp_labels"]
+                temporal_token_comp_labels = pair["temporal_token_comp_labels"]
+
                 x_data.append(sample)
-                
-                # Extract label from key
-                key_str = key.decode()
-                parts = key_str.split('_')
-                label = int(parts[-1][1:])
-                if self.dataset_name == 'tuev':
-                    label = label - 1
                 y_labels.append(label)
+                token_comp_labels_list.append(token_comp_labels)
+                temporal_token_comp_labels_list.append(temporal_token_comp_labels)
                 sample_keys.append(key)
 
         x_data = np.stack(x_data, axis=0)  # Shape: (batch_size, n_spatial_channels * n_temporal_channels * embedding_dim)
         y_label = np.array(y_labels)  # Shape: (batch_size,)
         sample_keys = np.array(sample_keys)  # Shape: (batch_size,)
+        token_comp_labels = np.stack(token_comp_labels_list, axis=0)
+        temporal_token_comp_labels = np.stack(temporal_token_comp_labels_list, axis=0)
 
-        embedding_dim = x_data.shape[1] // self.channel_product
         
-        # Reshape to (batch_size, n_spatial * n_temporal, embedding_dim)
-        x_data = x_data.reshape(x_data.shape[0], self.channel_product, embedding_dim)
-        
-        # Then reshape to (batch_size, n_spatial, n_temporal, embedding_dim)
-        x_data = x_data.reshape(x_data.shape[0], self.n_spatial_channels, self.n_temporal_channels, embedding_dim)
-
-        x_data = x_data.transpose(0, 2, 1, 3)  # Shape: (batch_size, n_temporal, n_spatial, embedding_dim)
 
         if self.temporal_channel_selection is not None:
             # Apply temporal channel selection
@@ -138,7 +136,7 @@ class CustomLMDBEmbeddingDataset(Dataset):
 
         x_data = to_tensor(x_data)
 
-        return x_data, to_tensor(y_label).long(), sample_keys
+        return (x_data, to_tensor(y_label).long(), to_tensor(token_comp_labels).long(),to_tensor(temporal_token_comp_labels).long(), sample_keys)
 
 class LoadDataset(object):
     def __init__(self, params):

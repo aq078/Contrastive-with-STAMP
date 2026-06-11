@@ -8,7 +8,7 @@ local_config = get_local_config()
 
 if __name__ == '__main__':
 
-    batch_size = 4 # NOTE: Each sample isn't an individual time series, but a (spatial_channels x temporal channels) matrix.
+    batch_size = 4 #4 # NOTE: Each sample isn't an individual time series, but a (spatial_channels x temporal channels) matrix.
     available_gpus = [0] # List of available GPU IDs
     embedding_model_name = 'MOMENT-1-large' # Options: ['MOMENT-1-small', 'MOMENT-1-base', 'MOMENT-1-large', 'chronos-t5-large', 'TSPulse']
     model_load_fn = load_moment_model # Options: [load_moment_model, load_chronos_model, load_tspulse_model]
@@ -26,9 +26,9 @@ if __name__ == '__main__':
     processed_data_dir = processed_data_dirs[dataset_name]
 
     map_size_per_mode = {
-        'train': 10 * 1024**3,
-        'val': 7 * 1024**3,
-        'test': 7 * 1024**3
+        'train': 80 * 1024**3,
+        'val': 60 * 1024**3,
+        'test': 60 * 1024**3
     }
     params = SimpleNamespace(
             dataset_name=dataset_name,

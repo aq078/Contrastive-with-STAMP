@@ -229,6 +229,8 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
     all_embeddings = []
     all_labels = []
     all_sample_keys = []
+    all_token_comp_labels = []
+    all_temporal_token_comp_labels = []
     processed_samples = 0
     chunk_idx = 0
 
@@ -242,7 +244,7 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
                 x_data, y_label, sample_keys = batch
                 mask = None
             else:
-                x_data, y_label, mask, sample_keys = batch
+                x_data, y_label, token_comp_labels, temporal_token_comp_labels, mask, sample_keys = batch
 
             # For MOMENT:
                 # x_data shape: (batch_size * n_spatial_channels * n_temporal_channels, 1, seq_len)
@@ -303,6 +305,27 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
                         outputs = model(x_enc=x_data, input_mask=mask)
                 else:
                     outputs = model(x_enc=x_data, input_mask=mask)
+                #test
+                if batch_idx == 0 and rank == 0:
+                    print("outputs type:", type(outputs))
+                    for attr in ["embeddings", "last_hidden_state", "hidden_states"]:
+                        if hasattr(outputs, attr):
+                            val = getattr(outputs, attr)
+                            if torch.is_tensor(val):
+                                print(attr, val.shape)
+                            else:
+                                print(attr, type(val))
+                    print(type(outputs))
+
+                    for attr in dir(outputs):
+                        if "hidden" in attr or "state" in attr:
+                            try:
+                                val = getattr(outputs, attr)
+                                if torch.is_tensor(val):
+                                    print(attr, val.shape)
+                            except:
+                                pass
+                #test
                 # right after outputs = model(...)
                 # add this once
                 def _tstat(name, t):
@@ -364,31 +387,31 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
             else:
                 raise ValueError(f"Model name '{model_name}' not recognized for embedding extraction")
                 
-            batch_size = x_data.shape[0] // (n_temporal_channels * n_spatial_channels)
-            embeddings = embeddings.view(batch_size, -1)
-            # ### DEBUG CHECKS: OUTPUT START ###
-            # # Check embeddings for NaN/Inf before saving/chunking
-            # if torch.isnan(embeddings).any() or torch.isinf(embeddings).any():
-            #     print('BAD EMBEDDINGS', 'batch_idx', batch_idx,
-            #           'nan', torch.isnan(embeddings).any().item(),
-            #           'inf', torch.isinf(embeddings).any().item(),
-            #           'shape', tuple(embeddings.shape),
-            #           'model', model_name)
-            #     # Avoid crashing summary stats due to NaNs
-            #     emb_safe = torch.nan_to_num(embeddings)
-            #     print('emb min/max/mean:', emb_safe.min().item(), emb_safe.max().item(), emb_safe.mean().item())
-            #     continue
-            # ### DEBUG CHECKS: OUTPUT END ###
+            patch_len = 8
+            n_patches = 64 // patch_len
+            channels = n_spatial_channels
+
+            batch_size = x_data.shape[0] // (n_patches * channels)
+
+            D = embeddings.shape[-1]
+            embeddings = embeddings.view(batch_size, n_patches, channels, D)  # [B, 8, 99, D]
+            
 
 
             # The lmdb_pickle_dataset.py has sample_keys as dictionary containing metadata so we have to handle this
             if isinstance(sample_keys[0], dict):
-                stride = n_spatial_channels * n_temporal_channels
-                sample_keys = [sample_keys[i * stride]['sample_key'] for i in range(batch_size)]
+                patch_len = 8
+                n_patches = 64 // patch_len
+                channels = n_spatial_channels
+                stride = n_patches * channels
+
+                sample_keys = [sample_keys[i * stride]["sample_key"] for i in range(batch_size)]
 
             # Store results
             all_embeddings.append(embeddings)
             all_labels.append(y_label.cpu())
+            all_token_comp_labels.append(token_comp_labels.cpu())
+            all_temporal_token_comp_labels.append(temporal_token_comp_labels.cpu())
             all_sample_keys.extend(sample_keys)
 
             processed_samples += batch_size
@@ -396,7 +419,9 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
             # Save chunk if needed
             if processed_samples >= chunk_size:
                 save_embedding_chunk_distributed(
-                    embeddings_list=all_embeddings, labels_list=all_labels, sample_keys_list=all_sample_keys,
+                    embeddings_list=all_embeddings, labels_list=all_labels, token_comp_labels_list=all_token_comp_labels,
+                    temporal_token_comp_labels_list = all_temporal_token_comp_labels,
+                    sample_keys_list=all_sample_keys,
                     output_dir=output_dir, chunk_idx=chunk_idx, rank=rank, model_name=model_name
                 )
 
@@ -417,23 +442,34 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
     # Save final chunk
     if all_embeddings:
         save_embedding_chunk_distributed(
-            embeddings_list=all_embeddings, labels_list=all_labels, sample_keys_list=all_sample_keys,
+            embeddings_list=all_embeddings, labels_list=all_labels, token_comp_labels_list=all_token_comp_labels,
+            temporal_token_comp_labels_list=all_temporal_token_comp_labels,sample_keys_list=all_sample_keys,
             output_dir=output_dir, chunk_idx=chunk_idx, rank=rank, model_name=model_name
         )
 
     return output_dir
 
-def save_embedding_chunk_distributed(embeddings_list, labels_list, sample_keys_list,
-                                   output_dir, chunk_idx, rank, model_name):
+def save_embedding_chunk_distributed(
+    embeddings_list,
+    labels_list,
+    token_comp_labels_list,
+    temporal_token_comp_labels_list,
+    sample_keys_list,
+    output_dir,
+    chunk_idx, rank, model_name):
     """Save embeddings chunk for distributed processing"""
     chunk_embeddings = torch.cat(embeddings_list, dim=0) # (total_samples, full_dim)
     chunk_labels = torch.cat(labels_list, dim=0)
+    chunk_token_comp_labels = torch.cat(token_comp_labels_list, dim=0)
+    chunk_temporal_token_comp_labels = torch.cat(temporal_token_comp_labels_list,dim=0)
 
     base_filename = f'chunk_rank{rank}_{chunk_idx:04d}'
 
     # Save as separate NPY files for optimal performance
     embeddings_file = os.path.join(output_dir, f'{base_filename}_embeddings.npy')
     labels_file = os.path.join(output_dir, f'{base_filename}_labels.npy')
+    token_labels_file = os.path.join(output_dir, f'{base_filename}_token_labels.npy')
+    temporal_token_labels_file = os.path.join(output_dir, f'{base_filename}_temporal_token_labels.npy')
     keys_file = os.path.join(output_dir, f'{base_filename}_keys.npy')
 
     if 'chronos' in model_name.lower():
@@ -444,6 +480,8 @@ def save_embedding_chunk_distributed(embeddings_list, labels_list, sample_keys_l
 
     np.save(embeddings_file, chunk_embeddings)
     np.save(labels_file, chunk_labels.numpy())
+    np.save(token_labels_file, chunk_token_comp_labels.numpy())
+    np.save(temporal_token_labels_file, chunk_temporal_token_comp_labels.numpy())
     sample_keys_array = np.array(sample_keys_list, dtype=object)
     np.save(keys_file, sample_keys_array)
 
@@ -497,15 +535,21 @@ def merge_distributed_chunks(output_dir, split_name, output_path, cleanup_chunks
             for chunk_base in tqdm(chunk_bases, desc=f"Loading {rank_dir}"):
                 embeddings_file = os.path.join(rank_path, f'{chunk_base}_embeddings.npy')
                 labels_file = os.path.join(rank_path, f'{chunk_base}_labels.npy')
+                token_labels_file = os.path.join(rank_path,f'{chunk_base}_token_labels.npy')
                 keys_file = os.path.join(rank_path, f'{chunk_base}_keys.npy')
+                temporal_token_labels_file = os.path.join(rank_path, f'{chunk_base}_temporal_token_labels.npy')
 
                 # Load NPY files (much faster than pickle)
                 embeddings = np.load(embeddings_file)  # Shape: (N, embedding_dim)
                 labels = np.load(labels_file)
+                token_comp_labels = np.load(token_labels_file)
+                temporal_token_comp_labels = np.load(temporal_token_labels_file)
                 sample_keys = np.load(keys_file, allow_pickle=True)  # Object array of strings
 
                 # Store each embedding individually in LMDB
-                for embedding, label, sample_key in zip(embeddings, labels, sample_keys):
+                for embedding, label, token_comp_label, temporal_token_comp_label, sample_key in zip(
+                    embeddings, labels, token_comp_labels, temporal_token_comp_labels, sample_keys
+                ):
                     # Use the sample_key directly as the filename
                     # Clean the sample_key to ensure it's a valid filename
                     clean_sample_key = str(sample_key).replace('\x00', '').strip()
@@ -522,7 +566,13 @@ def merge_distributed_chunks(output_dir, split_name, output_path, cleanup_chunks
                     #           'shape', getattr(embedding, 'shape', None))
                     #     continue
                     ### DEBUG CHECKS: WRITE END ###
-                    writer.write_sample(embedding, int(label), clean_sample_key, dtype=np.float32)
+                    writer.write_sample(embedding,
+                                        int(label),
+                                        clean_sample_key,
+                                        dtype=np.float32,
+                                        token_comp_labels=token_comp_label,
+                                        temporal_token_comp_labels = temporal_token_comp_label,
+                                    )
                     sample_idx += 1
 
     print(f"Merged {sample_idx:,} embeddings from {total_chunks} chunks across {len(rank_dirs)} GPUs")

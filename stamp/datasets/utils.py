@@ -107,10 +107,10 @@ dataset_params = {
         'n_samples': 5088,
         'n_classes': 4
     },
-    'sere': {
+    'sere': {#original sere: 30, 33,3
     'orig_sampling_rate': 30,
-    'n_spatial_channels': 33,
-    'n_temporal_channels': 3,
+    'n_spatial_channels': 99,
+    'n_temporal_channels': 8,
     'n_samples': 2971,   # fill after counting
     'n_classes': 2    # change if your label isn't binary
 },
