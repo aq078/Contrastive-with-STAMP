@@ -17,7 +17,7 @@ for dataset_name in dataset_names:
 
     temporal_channel_selection = None
     training_data_ratio = 1.0
-    label_smoothing = 0
+    label_smoothing = 0.1
     use_gradient_clipping = True
     use_batch_norm = False
     use_instance_norm = True
@@ -27,13 +27,13 @@ for dataset_name in dataset_names:
 
     dropout_rate = 0.3
 
-    n_epochs = 80
+    n_epochs = 200
     train_batch_size = 16
     test_batch_size = 16
-    min_epoch = 0
+    min_epoch = 180
     problem_type = "multiclass"
     n_classes = 2
-    device = "cuda:1"
+    device = "cuda:0"
     # Hyperparameter grids
     D_values = [128]
 
@@ -68,8 +68,8 @@ for dataset_name in dataset_names:
     lr_params = {
         "use_scheduler": True,
         "scheduler_type": "one_cycle",
-        "initial_lr": 5e-4,
-        "max_lr": 3e-3,
+        "initial_lr": 1e-4,
+        "max_lr": 5e-4,
     }
 
     optimizer_params = {
@@ -230,10 +230,10 @@ for dataset_name in dataset_names:
         }
 
         if temporal_channel_selection is None:
-            exp_name = f'{embedding_model_name}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
+            exp_name = f'rerun_{embedding_model_name}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
         else:
             tcs_str = '-'.join([str(tc) for tc in temporal_channel_selection])
-            exp_name = f'{embedding_model_name}_tcs{tcs_str}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
+            exp_name = f'rerun_{embedding_model_name}_tcs{tcs_str}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
 
         if initial_proj_params is not None:
             exp_name += 'ip-'

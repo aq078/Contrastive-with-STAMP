@@ -300,9 +300,11 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
                 
                 if use_amp:
                     with torch.cuda.amp.autocast():
-                        outputs = model(x_enc=x_data, input_mask=mask)
+                        outputs = model(x_enc=x_data, input_mask=mask, reduction="none")
                 else:
-                    outputs = model(x_enc=x_data, input_mask=mask)
+                    outputs = model(x_enc=x_data, input_mask=mask, reduction="none")
+                
+                # print("outputs.embeddings.shape =", outputs.embeddings.shape)
                 # right after outputs = model(...)
                 # add this once
                 def _tstat(name, t):
@@ -364,8 +366,29 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
             else:
                 raise ValueError(f"Model name '{model_name}' not recognized for embedding extraction")
                 
-            batch_size = x_data.shape[0] // (n_temporal_channels * n_spatial_channels)
-            embeddings = embeddings.view(batch_size, -1)
+            # batch_size = x_data.shape[0] // (n_temporal_channels * n_spatial_channels)
+            # embeddings = embeddings.view(batch_size, -1)
+            
+            # batch_size = y_label.shape[0]
+            # embeddings = embeddings.reshape(batch_size, -1)
+            
+            embeddings = embeddings.detach().cpu()
+
+            # MOMENT reduction="none": [B*99, 1, 8, 1024]
+            if embeddings.ndim == 4:
+                embeddings = embeddings.squeeze(1)  # [B*99, 8, 1024]
+
+            batch_size = x_data.shape[0] // n_spatial_channels  # 396 // 99 = 4
+
+            # [B*99, 8, 1024] -> [B, 99, 8, 1024]
+            embeddings = embeddings.reshape(batch_size, n_spatial_channels, n_temporal_channels, -1)
+
+            # [B, 99, 8, 1024] -> [B, 8, 99, 1024]
+            embeddings = embeddings.permute(0, 2, 1, 3)
+
+            # flatten for LMDB
+            embeddings = embeddings.reshape(batch_size, -1)
+            # print("final embeddings.shape =", embeddings.shape)
             # ### DEBUG CHECKS: OUTPUT START ###
             # # Check embeddings for NaN/Inf before saving/chunking
             # if torch.isnan(embeddings).any() or torch.isinf(embeddings).any():
@@ -383,7 +406,7 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
 
             # The lmdb_pickle_dataset.py has sample_keys as dictionary containing metadata so we have to handle this
             if isinstance(sample_keys[0], dict):
-                stride = n_spatial_channels * n_temporal_channels
+                stride = n_spatial_channels   # 99
                 sample_keys = [sample_keys[i * stride]['sample_key'] for i in range(batch_size)]
 
             # Store results
