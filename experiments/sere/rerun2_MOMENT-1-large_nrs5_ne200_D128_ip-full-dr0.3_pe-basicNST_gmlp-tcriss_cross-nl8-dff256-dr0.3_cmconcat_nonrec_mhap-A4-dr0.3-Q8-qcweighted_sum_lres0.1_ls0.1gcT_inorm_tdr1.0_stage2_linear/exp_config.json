@@ -1,5 +1,5 @@
 {
-    "exp_name": "t8_s99_MOMENT-1-large_nrs5_ne200_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear",
+    "exp_name": "rerun_MOMENT-1-large_nrs5_ne200_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear",
     "embedding_model_name": "MOMENT-1-large",
     "embedding_models_dir": "moment/MOMENT-1-large",
     "n_random_seeds": 1,
@@ -46,14 +46,14 @@
             "n_epochs": 300,
             "train_batch_size": 16,
             "test_batch_size": 16,
-            "min_epoch": 260,
+            "min_epoch": 220,
             "use_tqdm": false,
             "store_attention_weights": false,
             "debug_size": null,
             "lr_params": {
                 "use_scheduler": true,
                 "scheduler_type": "one_cycle",
-                "initial_lr": 1e-05,
+                "initial_lr": 3e-05,
                 "max_lr": 0.0003
             },
             "optimizer_params": {
@@ -67,28 +67,28 @@
             },
             "early_stopping_params": {
                 "name": "EarlyStopping",
-                "patience": 20,
+                "patience": 100,
                 "min_delta": 0.001,
-                "tmp_dir": "temporary/sere/t8_s99_MOMENT-1-large_nrs5_ne200_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear",
+                "tmp_dir": "temporary/sere/rerun_MOMENT-1-large_nrs5_ne200_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/sere/rerun_MOMENT-1-large_nrs5_ne200_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/sere/rerun2_MOMENT-1-large_nrs5_ne200_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear",
                 "monitor_metric": "val_balanced_acc"
             },
             "checkpointing_params": null,
             "problem_type": "multiclass",
             "n_classes": 2,
             "device": "cuda:0",
-            "n_temporal_channels": 3,
-            "n_spatial_channels": 33,
-            "load_pretrained_ckpt": "checkpoints/sere/t8_s99_MOMENT-1-large_nrs5_ne200_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/supcon/best.pth",
+            "n_temporal_channels": 8,
+            "n_spatial_channels": 99,
+            "load_pretrained_ckpt": "checkpoints/sere/rerun_MOMENT-1-large_nrs5_ne200_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/supcon/best.pth",
             "freeze_backbone": true,
             "n_samples": 2971
         }
     },
     "embeddings_dir": "embeddings/sere/MOMENT-1-large",
     "random_seeds": [
-        25
+        654
     ],
-    "commit_hash": "253fcdf926c2524304e7622393c1094a069d2ca6",
-    "run_date": "2026-06-11 07:57:06",
+    "commit_hash": "32b3451e0bbeb07cc6bba8b3d98295f1fdab07cc",
+    "run_date": "2026-06-25 13:56:01",
     "gpu_info": [
         {
             "gpu_id": 0,
@@ -97,12 +97,12 @@
         }
     ],
     "training_run_time_per_seed": {
-        "25": 175.07392048835754
+        "654": 960.5291750431061
     },
     "testing_run_time_per_seed": {
-        "25": 0.3206467628479004
+        "654": 2.211949348449707
     },
-    "main_run_time": 860.0282351970673,
+    "main_run_time": 963.2369115352631,
     "total_parameters": 34178,
-    "total_flops": 1155141632
+    "total_flops": 10160574464
 }

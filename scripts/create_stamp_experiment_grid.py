@@ -230,10 +230,10 @@ for dataset_name in dataset_names:
         }
 
         if temporal_channel_selection is None:
-            exp_name = f'rerun_{embedding_model_name}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
+            exp_name = f'rerun2_{embedding_model_name}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
         else:
             tcs_str = '-'.join([str(tc) for tc in temporal_channel_selection])
-            exp_name = f'rerun_{embedding_model_name}_tcs{tcs_str}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
+            exp_name = f'rerun2_{embedding_model_name}_tcs{tcs_str}_nrs{exp_config["n_random_seeds"]}_ne{n_epochs}_D{D}_'
 
         if initial_proj_params is not None:
             exp_name += 'ip-'
