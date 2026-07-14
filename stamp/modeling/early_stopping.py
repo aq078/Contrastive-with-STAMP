@@ -48,7 +48,7 @@ class EarlyStopping:
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': model.optimizer.state_dict(),
                 'current_metric': current_metric,
-            }, tmp_dir + f'/best_checkpoint_seed{self.random_seed}.pth')
+            }, tmp_dir + f'/best_seed{self.random_seed}.pth')
 
             return False
         else:

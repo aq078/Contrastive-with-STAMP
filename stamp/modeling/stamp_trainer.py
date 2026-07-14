@@ -1,4 +1,5 @@
 import pandas as pd
+import os
 import torch
 import torch.nn as nn
 from os import (remove as os_remove, path as os_path)
@@ -126,15 +127,56 @@ class STAMPModelingApproach(ModelingApproach):
         self.load_pretrained_ckpt = kwargs.get("load_pretrained_ckpt", None)
         self.freeze_backbone = kwargs.get("freeze_backbone", False)
 
-        if self.load_pretrained_ckpt is not None:
-            ckpt = torch.load(self.load_pretrained_ckpt, map_location=self.device)
-            state = ckpt.get("model_state_dict", ckpt)
-            self.model.load_state_dict(state, strict=False)
+        # Delay loading/freezing until train(), because self.random_seed is set after __init__.
+        # This lets load_pretrained_ckpt be seed-specific, e.g.
+        #   ".../best_seed{seed}.pth"
+        self._pretrained_loaded_and_frozen = False
+    def _resolve_pretrained_ckpt_path(self):
+        """Resolve optional seed-specific pretrained checkpoint path."""
+        ckpt_path = self.load_pretrained_ckpt
+        if ckpt_path is None:
+            return None
 
+        if isinstance(ckpt_path, dict):
+            seed = self.random_seed
+            return ckpt_path.get(seed, ckpt_path.get(str(seed)))
+
+        if isinstance(ckpt_path, str):
+            seed = self.random_seed
+            if "{seed}" in ckpt_path or "{random_seed}" in ckpt_path:
+                return ckpt_path.format(seed=seed, random_seed=seed)
+            return ckpt_path
+
+        raise ValueError(f"Unsupported load_pretrained_ckpt type: {type(ckpt_path)}")
+
+    def _load_pretrained_and_configure_trainable(self):
+        """Load checkpoint and apply freeze settings once, after random_seed is known."""
+        if self._pretrained_loaded_and_frozen:
+            return
+
+        ckpt_path = self._resolve_pretrained_ckpt_path()
+        if ckpt_path is not None:
+            print(f"Loading pretrained checkpoint: {ckpt_path}")
+
+            ckpt = torch.load(ckpt_path, map_location=self.device)
+
+            state = ckpt.get("model_state_dict", ckpt)
+
+            missing, unexpected = self.model.load_state_dict(
+                state,
+                strict=False,
+            )
+
+            print(
+                f"Loaded pretrained checkpoint. "
+                f"Missing keys: {len(missing)}, "
+                f"unexpected keys: {len(unexpected)}"
+            )
         if self.freeze_backbone:
             for p in self.model.parameters():
                 p.requires_grad = False
-            #also unfreeze MHAP
+
+            # Stage-2 protocol: train MHAP + classifier on top of frozen backbone.
             if hasattr(self.model, "multi_head_attention_pooling") and self.model.multi_head_attention_pooling is not None:
                 for p in self.model.multi_head_attention_pooling.parameters():
                     p.requires_grad = True
@@ -144,12 +186,14 @@ class STAMPModelingApproach(ModelingApproach):
                     p.requires_grad = True
             else:
                 raise ValueError("Model has no classifier to train.")
-            #debug---
+
             trainable = [(n, p.numel()) for n, p in self.model.named_parameters() if p.requires_grad]
             print("Trainable params:")
             for n, k in trainable:
                 print(n, k)
-            #---
+
+        self._pretrained_loaded_and_frozen = True
+
     def train(
         self,
         train_data_loader,
@@ -157,6 +201,9 @@ class STAMPModelingApproach(ModelingApproach):
 
         # Set random seed for reproducibility
         torch.manual_seed(self.random_seed)
+
+        # Load seed-specific pretrained checkpoint after random_seed is available.
+        self._load_pretrained_and_configure_trainable()
 
         if self.use_early_stopping:
             self.early_stopping.random_seed = self.random_seed
@@ -166,11 +213,14 @@ class STAMPModelingApproach(ModelingApproach):
             criterion = nn.BCEWithLogitsLoss()
         elif self.problem_type == 'multiclass':
             #class weight added for sere dataset
-            class_weights = torch.tensor([3.0, 1.0], dtype=torch.float32, device=self.device)
+            # class_weights = torch.tensor([3.0, 1.0], dtype=torch.float32, device=self.device)
+            # criterion = nn.CrossEntropyLoss(
+            #     weight=class_weights,
+            #     label_smoothing=self.label_smoothing
+            # )
             criterion = nn.CrossEntropyLoss(
-                weight=class_weights,
-                label_smoothing=self.label_smoothing
-            )
+                            label_smoothing=self.label_smoothing
+                        )
         elif self.problem_type == 'regression':
             criterion = nn.MSELoss()
         else:
@@ -324,12 +374,12 @@ class STAMPModelingApproach(ModelingApproach):
             # Load the best model
             assert os_path.exists(self.tmp_dir), 'Tmp dir does not exist.'
             print(f'Loading best checkpoint from epoch {self.early_stopping.best_epoch}...')
-            checkpoint = torch.load(self.tmp_dir + f'/best_checkpoint_seed{self.random_seed}.pth')
+            checkpoint = torch.load(self.tmp_dir + f'/best_seed{self.random_seed}.pth')
             self.model.load_state_dict(checkpoint['model_state_dict'])
             del checkpoint
 
             # Remove the early stopping checkpoint
-            os_remove(self.tmp_dir + f'/best_checkpoint_seed{self.random_seed}.pth')
+            os_remove(self.tmp_dir + f'/best_seed{self.random_seed}.pth')
 
         if self.device.type == 'cuda':
             del train_data_loader, val_data_loader, train_iterator, val_iterator

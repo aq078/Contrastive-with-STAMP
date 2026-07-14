@@ -1,11 +1,9 @@
 *.pyc
 data/*
 *.csv
-*.png
 
 # deep learning
 *.ckpt
-results/*
 !**/default.yaml
 notebooks/best_checkpoint.pth
 tmp/**

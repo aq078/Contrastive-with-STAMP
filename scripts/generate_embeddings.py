@@ -20,7 +20,7 @@ if __name__ == '__main__':
     # embedding_agg = "mean"   # or "eos"
 
     tmp_dir = 'temporary' # Temporary directory to store intermediate chunk files
-    dataset_name = 'sere_comp_hybrid'
+    dataset_name = 'sere'
     output_path = f'embeddings/{dataset_name}/{embedding_model_name}' # Directory to save the generated embeddings
     processed_data_dirs = local_config.processed_data_dirs
     processed_data_dir = processed_data_dirs[dataset_name]
@@ -35,9 +35,9 @@ if __name__ == '__main__':
             dataset_dir=processed_data_dir,
             batch_size=batch_size,
             return_mask=True,
-            pad_to_len=128,
+            pad_to_len=64,
             reshape_data=True,
-            orig_seq_len=128,
+            orig_seq_len=64,
             embedding_model_name=embedding_model_name
     )
 

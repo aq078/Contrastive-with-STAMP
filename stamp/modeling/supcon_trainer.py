@@ -305,7 +305,7 @@ class SupConSTAMPModelingApproach(ModelingApproach):
                 os.makedirs(ckpt_dir, exist_ok=True)
 
         best_val_loss = float("inf")
-        best_path = os.path.join(ckpt_dir, "best.pth") if (ckpt_dir is not None) else None
+        best_path = (os.path.join(ckpt_dir, f"best_seed{self.random_seed}.pth") if (ckpt_dir is not None) else None)
 
         stopped_early = False
         for epoch in range(self.n_epochs):
@@ -347,7 +347,9 @@ class SupConSTAMPModelingApproach(ModelingApproach):
                         max_norm=1.0,
                     )
                 self.model.optimizer.step()
-
+                # print("loss:", loss.item())
+                # print("z std:", z1.std().item())
+                
                 if self.scheduler is not None and self.lr_params["scheduler_type"] == "one_cycle":
                     self.scheduler.step()
 
@@ -393,6 +395,7 @@ class SupConSTAMPModelingApproach(ModelingApproach):
                     best_val_loss = val_loss
                     payload = {
                         "epoch": epoch,
+                        "best_epoch": epoch,
                         "val_loss": float(val_loss),
                         "model_state_dict": self.model.state_dict(),
                         "optimizer_state_dict": self.model.optimizer.state_dict(),
