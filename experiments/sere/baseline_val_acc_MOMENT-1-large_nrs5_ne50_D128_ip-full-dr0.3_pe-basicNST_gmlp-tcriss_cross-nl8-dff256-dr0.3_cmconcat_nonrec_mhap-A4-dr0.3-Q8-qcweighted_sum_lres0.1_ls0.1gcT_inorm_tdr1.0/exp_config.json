@@ -69,7 +69,7 @@
                 "name": "EarlyStopping",
                 "patience": 1000,
                 "min_delta": 0.001,
-                "tmp_dir": "temporary/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0",
+                "tmp_dir": "temporary/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0",
                 "monitor_metric": "val_balanced_acc"
             },
             "checkpointing_params": null,
@@ -89,8 +89,8 @@
         759,
         281
     ],
-    "commit_hash": "9be2cd52bbf5d66d55c89d4475be3408ae62abd2",
-    "run_date": "2026-07-08 23:19:34",
+    "commit_hash": "b4b3f226bb5bd61e8479939d339576160679f528",
+    "run_date": "2026-07-14 05:13:44",
     "gpu_info": [
         {
             "gpu_id": 0,
@@ -99,20 +99,20 @@
         }
     ],
     "training_run_time_per_seed": {
-        "654": 46.37024450302124,
-        "114": 44.06596493721008,
-        "25": 44.19931101799011,
-        "759": 44.068403005599976,
-        "281": 43.79931163787842
+        "654": 40.00690746307373,
+        "114": 37.48165988922119,
+        "25": 37.47395467758179,
+        "759": 37.24967956542969,
+        "281": 38.14595293998718
     },
     "testing_run_time_per_seed": {
-        "654": 0.27047038078308105,
-        "114": 0.2631213665008545,
-        "25": 0.2843015193939209,
-        "759": 0.26462650299072266,
-        "281": 0.25642824172973633
+        "654": 0.92173171043396,
+        "114": 0.2245311737060547,
+        "25": 0.2314302921295166,
+        "759": 0.22362685203552246,
+        "281": 0.22565984725952148
     },
-    "main_run_time": 226.25916290283203,
+    "main_run_time": 195.30514574050903,
     "total_parameters": 727282,
     "total_flops": 4620566528
 }
