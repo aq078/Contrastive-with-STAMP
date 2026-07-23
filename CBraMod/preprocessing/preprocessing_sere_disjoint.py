@@ -45,7 +45,7 @@ import pandas as pd
 # =========================
 
 ROOT_DIR = Path("dataset/SERE_dataset_SHAREABLE_skeletons")  # <-- EDIT
-OUT_LMDB = Path("dataset/processed_sere/sere_framecomp_world_xyz_L64_S16.lmdb")  # <-- EDIT
+
 
 WORLD_DIR = ROOT_DIR / "MediaPipe_skeletons" / "WorldLandmarks"
 FRAME_LABEL_DIR = ROOT_DIR / "Labels" / "frame_level" / "compensation"
@@ -71,16 +71,16 @@ FRAME_END_COL = "frame_end"
 FRAME_COMP_COL = "comp"
 
 # Windowing
-WINDOW_L = 64
-STRIDE = 16
-AGGREGATION = "threshold"  # "threshold" | "any" | "majority" | "mean"
+WINDOW_L = 32
+STRIDE = 8
+AGGREGATION = "any"  # "threshold" | "any" | "majority" | "mean"
 
 # Normalization
 NORMALIZE = True
 
 # Filtering
-MIN_TRIAL_FRAMES = 64              # skip short trials
-MIN_EVENT_FRAMES = 64              # skip movement/background events shorter than one window
+MIN_TRIAL_FRAMES = WINDOW_L              # skip short trials
+MIN_EVENT_FRAMES = WINDOW_L              # skip movement/background events shorter than one window
 MIN_VALID_LABELS_IN_WINDOW = 1     # if labels are missing (NaN), skip windows with too few labels
 SKIP_WINDOWS_WITH_NANS = True      # skip windows where skeleton has NaNs due to missing frames
 POSITIVE_FRAME_THRESHOLD = 2/64    # window label 1 if >= this fraction of valid frames are comp
@@ -92,7 +92,7 @@ SPLIT = {"train": 0.6, "val": 0.15, "test": 0.25}
 
 # LMDB
 LMDB_MAP_SIZE = 8_000_000_000
-
+OUT_LMDB = Path(f"dataset/processed_sere/sere_framecomp_world_xyz_L{WINDOW_L}_S{STRIDE}.lmdb")  # <-- EDIT
 # =========================
 # Constants
 # =========================
