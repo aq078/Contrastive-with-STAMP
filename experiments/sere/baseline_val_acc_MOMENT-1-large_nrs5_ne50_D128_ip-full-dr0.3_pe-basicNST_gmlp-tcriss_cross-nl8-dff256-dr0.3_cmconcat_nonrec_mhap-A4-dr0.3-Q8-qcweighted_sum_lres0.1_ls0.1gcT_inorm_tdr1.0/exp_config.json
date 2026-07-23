@@ -69,7 +69,7 @@
                 "name": "EarlyStopping",
                 "patience": 1000,
                 "min_delta": 0.001,
-                "tmp_dir": "temporary/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0",
+                "tmp_dir": "temporary/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0",
                 "monitor_metric": "val_balanced_acc"
             },
             "checkpointing_params": null,
@@ -89,8 +89,8 @@
         759,
         281
     ],
-    "commit_hash": "b4b3f226bb5bd61e8479939d339576160679f528",
-    "run_date": "2026-07-14 05:13:44",
+    "commit_hash": "e304a9d151f6d0d96b6894f0a60589dfbf969688",
+    "run_date": "2026-07-16 07:31:18",
     "gpu_info": [
         {
             "gpu_id": 0,
@@ -99,20 +99,20 @@
         }
     ],
     "training_run_time_per_seed": {
-        "654": 40.00690746307373,
-        "114": 37.48165988922119,
-        "25": 37.47395467758179,
-        "759": 37.24967956542969,
-        "281": 38.14595293998718
+        "654": 39.040496826171875,
+        "114": 38.10650992393494,
+        "25": 38.15342879295349,
+        "759": 37.9648802280426,
+        "281": 38.45616579055786
     },
     "testing_run_time_per_seed": {
-        "654": 0.92173171043396,
-        "114": 0.2245311737060547,
-        "25": 0.2314302921295166,
-        "759": 0.22362685203552246,
-        "281": 0.22565984725952148
+        "654": 0.22583723068237305,
+        "114": 0.2125873565673828,
+        "25": 0.21846246719360352,
+        "759": 0.22540998458862305,
+        "281": 0.22786283493041992
     },
-    "main_run_time": 195.30514574050903,
+    "main_run_time": 195.09765601158142,
     "total_parameters": 727282,
     "total_flops": 4620566528
 }

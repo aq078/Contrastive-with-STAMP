@@ -73,7 +73,7 @@ FRAME_COMP_COL = "comp"
 # Windowing
 WINDOW_L = 64
 STRIDE = 16
-AGGREGATION = "any"  # "threshold" | "any" | "majority" | "mean"
+AGGREGATION = "threshold"  # "threshold" | "any" | "majority" | "mean"
 
 # Normalization
 NORMALIZE = True
@@ -83,7 +83,7 @@ MIN_TRIAL_FRAMES = 64              # skip short trials
 MIN_EVENT_FRAMES = 64              # skip movement/background events shorter than one window
 MIN_VALID_LABELS_IN_WINDOW = 1     # if labels are missing (NaN), skip windows with too few labels
 SKIP_WINDOWS_WITH_NANS = True      # skip windows where skeleton has NaNs due to missing frames
-POSITIVE_FRAME_THRESHOLD = 0.30     # window label 1 if >= this fraction of valid frames are comp
+POSITIVE_FRAME_THRESHOLD = 2/64    # window label 1 if >= this fraction of valid frames are comp
 EVENT_LABEL_THRESHOLD = 0.5          # only for event/run metadata; does not constrain windowing
 
 # Subject split (pid-based)
