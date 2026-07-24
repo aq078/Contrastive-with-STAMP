@@ -111,7 +111,7 @@ dataset_params = {
     'orig_sampling_rate': 30,
     'n_spatial_channels': 33,
     'n_temporal_channels': 3,
-    'n_samples': 5131,   # fill after counting#32-8456,64-2971,16-5131
+    'n_samples': 1115,   # fill after counting#32-8456,64-2971,16-5131, 80-1115
     'n_classes': 2    # change if your label isn't binary
 },
     'sere_video_comp': {

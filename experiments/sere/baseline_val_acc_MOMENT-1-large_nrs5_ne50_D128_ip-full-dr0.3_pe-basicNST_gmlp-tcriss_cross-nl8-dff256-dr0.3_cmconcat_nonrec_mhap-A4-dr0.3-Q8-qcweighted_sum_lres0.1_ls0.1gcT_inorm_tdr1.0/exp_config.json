@@ -69,7 +69,7 @@
                 "name": "EarlyStopping",
                 "patience": 1000,
                 "min_delta": 0.001,
-                "tmp_dir": "temporary/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0",
+                "tmp_dir": "temporary/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0",
                 "monitor_metric": "val_balanced_acc"
             },
             "checkpointing_params": null,
@@ -78,7 +78,7 @@
             "device": "cuda:0",
             "n_temporal_channels": 3,
             "n_spatial_channels": 33,
-            "n_samples": 5131
+            "n_samples": 1115
         }
     },
     "embeddings_dir": "embeddings/sere/MOMENT-1-large",
@@ -89,8 +89,8 @@
         759,
         281
     ],
-    "commit_hash": "2cb72d1910076d1f49086127cc9cf315010b99a6",
-    "run_date": "2026-07-23 18:58:15",
+    "commit_hash": "ced7758eb374e7dcc3c833dc3849f4080e73b09e",
+    "run_date": "2026-07-23 22:51:05",
     "gpu_info": [
         {
             "gpu_id": 0,
@@ -99,20 +99,20 @@
         }
     ],
     "training_run_time_per_seed": {
-        "654": 106.19413566589355,
-        "114": 103.37082648277283,
-        "25": 102.94298219680786,
-        "759": 105.10753393173218,
-        "281": 103.9482216835022
+        "654": 38.87313413619995,
+        "114": 33.23445463180542,
+        "25": 33.14617395401001,
+        "759": 33.16196012496948,
+        "281": 33.59978222846985
     },
     "testing_run_time_per_seed": {
-        "654": 0.44652867317199707,
-        "114": 0.4692041873931885,
-        "25": 0.4504125118255615,
-        "759": 0.45209503173828125,
-        "281": 0.45311641693115234
+        "654": 1.084085464477539,
+        "114": 0.16965460777282715,
+        "25": 0.18530559539794922,
+        "759": 0.15231823921203613,
+        "281": 0.16907882690429688
     },
-    "main_run_time": 527.4596240520477,
+    "main_run_time": 177.46173667907715,
     "total_parameters": 727282,
     "total_flops": 4620566528
 }
