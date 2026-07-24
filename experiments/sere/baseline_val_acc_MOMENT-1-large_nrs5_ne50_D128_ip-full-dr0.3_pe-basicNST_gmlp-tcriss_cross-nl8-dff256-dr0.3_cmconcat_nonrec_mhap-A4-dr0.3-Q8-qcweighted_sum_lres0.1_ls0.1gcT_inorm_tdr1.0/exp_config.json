@@ -43,7 +43,7 @@
                 "lambda_for_residual": 0.1
             },
             "final_classifier_params": null,
-            "n_epochs": 50,
+            "n_epochs": 65,
             "train_batch_size": 64,
             "test_batch_size": 64,
             "min_epoch": 0,
@@ -54,7 +54,7 @@
                 "use_scheduler": true,
                 "scheduler_type": "one_cycle",
                 "initial_lr": 5e-05,
-                "max_lr": 0.0003
+                "max_lr": 0.00015
             },
             "optimizer_params": {
                 "optimizer_name": "adamw",
@@ -69,7 +69,7 @@
                 "name": "EarlyStopping",
                 "patience": 1000,
                 "min_delta": 0.001,
-                "tmp_dir": "temporary/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0",
+                "tmp_dir": "temporary/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/sere/baseline_val_acc_MOMENT-1-large_nrs5_ne50_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0",
                 "monitor_metric": "val_balanced_acc"
             },
             "checkpointing_params": null,
@@ -78,7 +78,7 @@
             "device": "cuda:0",
             "n_temporal_channels": 3,
             "n_spatial_channels": 33,
-            "n_samples": 8456
+            "n_samples": 5131
         }
     },
     "embeddings_dir": "embeddings/sere/MOMENT-1-large",
@@ -89,8 +89,8 @@
         759,
         281
     ],
-    "commit_hash": "277e8c690ce8791c71c6c04b51ed283863e5bdf0",
-    "run_date": "2026-07-23 15:59:24",
+    "commit_hash": "2cb72d1910076d1f49086127cc9cf315010b99a6",
+    "run_date": "2026-07-23 18:58:15",
     "gpu_info": [
         {
             "gpu_id": 0,
@@ -99,20 +99,20 @@
         }
     ],
     "training_run_time_per_seed": {
-        "654": 155.00238943099976,
-        "114": 132.5610272884369,
-        "25": 132.4644479751587,
-        "759": 133.2108814716339,
-        "281": 133.2360966205597
+        "654": 106.19413566589355,
+        "114": 103.37082648277283,
+        "25": 102.94298219680786,
+        "759": 105.10753393173218,
+        "281": 103.9482216835022
     },
     "testing_run_time_per_seed": {
-        "654": 7.126760959625244,
-        "114": 0.5939648151397705,
-        "25": 0.5912156105041504,
-        "759": 0.6006431579589844,
-        "281": 0.617950439453125
+        "654": 0.44652867317199707,
+        "114": 0.4692041873931885,
+        "25": 0.4504125118255615,
+        "759": 0.45209503173828125,
+        "281": 0.45311641693115234
     },
-    "main_run_time": 701.5057029724121,
+    "main_run_time": 527.4596240520477,
     "total_parameters": 727282,
     "total_flops": 4620566528
 }
