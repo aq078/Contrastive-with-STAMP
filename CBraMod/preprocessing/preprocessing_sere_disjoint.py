@@ -71,8 +71,8 @@ FRAME_END_COL = "frame_end"
 FRAME_COMP_COL = "comp"
 
 # Windowing
-WINDOW_L = 80
-STRIDE = 40
+WINDOW_L = 32
+STRIDE = 8
 AGGREGATION = "any"  # "threshold" | "any" | "majority" | "mean"
 
 # Normalization

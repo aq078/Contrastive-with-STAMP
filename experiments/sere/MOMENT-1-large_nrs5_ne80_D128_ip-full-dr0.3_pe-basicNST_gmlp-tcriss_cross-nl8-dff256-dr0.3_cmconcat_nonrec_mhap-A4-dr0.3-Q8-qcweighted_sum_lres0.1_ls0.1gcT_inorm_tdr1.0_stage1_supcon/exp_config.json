@@ -68,7 +68,7 @@
                 "name": "EarlyStopping",
                 "patience": 1000000000,
                 "min_delta": 0.0,
-                "tmp_dir": "temporary/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage1_supcon/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage1_supcon/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage1_supcon",
+                "tmp_dir": "temporary/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage1_supcon/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage1_supcon/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage1_supcon/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage1_supcon",
                 "monitor_metric": "val_cohen_kappa"
             },
             "checkpointing_params": {
@@ -78,8 +78,8 @@
             "problem_type": "multiclass",
             "n_classes": 2,
             "device": "cuda:0",
-            "n_temporal_channels": 3,
-            "n_spatial_channels": 33,
+            "n_temporal_channels": 4,
+            "n_spatial_channels": 99,
             "supcon_params": {
                 "temperature": 0.07,
                 "proj_head": {
@@ -94,7 +94,7 @@
                 "drop_prob": 0.05,
                 "time_mask_prob": 0.05
             },
-            "n_samples": 1115
+            "n_samples": 8456
         }
     },
     "embeddings_dir": "embeddings/sere/MOMENT-1-large",
@@ -105,8 +105,8 @@
         759,
         281
     ],
-    "commit_hash": "ced7758eb374e7dcc3c833dc3849f4080e73b09e",
-    "run_date": "2026-07-23 22:57:07",
+    "commit_hash": "aa4ac53c77de8f614003c7baff96e5d62f480844",
+    "run_date": "2026-07-24 01:52:26",
     "gpu_info": [
         {
             "gpu_id": 0,
@@ -115,20 +115,20 @@
         }
     ],
     "training_run_time_per_seed": {
-        "654": 81.68941235542297,
-        "114": 80.08605074882507,
-        "25": 80.40169668197632,
-        "759": 80.10891366004944,
-        "281": 80.81262803077698
+        "654": 846.8680951595306,
+        "114": 823.7589194774628,
+        "25": 828.6558990478516,
+        "759": 830.9513740539551,
+        "281": 830.7509458065033
     },
     "testing_run_time_per_seed": {
-        "654": 0.06937050819396973,
-        "114": 0.07074856758117676,
-        "25": 0.07130599021911621,
-        "759": 0.07114648818969727,
-        "281": 0.0700693130493164
+        "654": 19.024389505386353,
+        "114": 3.717811346054077,
+        "25": 3.6264662742614746,
+        "759": 3.760040044784546,
+        "281": 3.8139796257019043
     },
-    "main_run_time": 403.95255637168884,
-    "total_parameters": 760048,
+    "main_run_time": 4198.4663116931915,
+    "total_parameters": 876928,
     "total_flops": null
 }

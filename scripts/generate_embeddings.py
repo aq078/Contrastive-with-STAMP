@@ -26,18 +26,18 @@ if __name__ == '__main__':
     processed_data_dir = processed_data_dirs[dataset_name]
 
     map_size_per_mode = {
-        'train': 10 * 1024**3,
-        'val': 7 * 1024**3,
-        'test': 7 * 1024**3
+        'train': 30 * 1024**3,
+        'val': 15 * 1024**3,
+        'test': 20 * 1024**3
     }
     params = SimpleNamespace(
             dataset_name=dataset_name,
             dataset_dir=processed_data_dir,
             batch_size=batch_size,
             return_mask=True,
-            pad_to_len=80,
+            pad_to_len=32,
             reshape_data=True,
-            orig_seq_len=80,
+            orig_seq_len=32,
             embedding_model_name=embedding_model_name
     )
 

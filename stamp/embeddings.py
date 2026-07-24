@@ -300,9 +300,9 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
                 
                 if use_amp:
                     with torch.cuda.amp.autocast():
-                        outputs = model(x_enc=x_data, input_mask=mask)
+                        outputs = model(x_enc=x_data, input_mask=mask , reduction="none")
                 else:
-                    outputs = model(x_enc=x_data, input_mask=mask)
+                    outputs = model(x_enc=x_data, input_mask=mask , reduction="none")
                 # right after outputs = model(...)
                 # add this once
                 def _tstat(name, t):
@@ -330,6 +330,7 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
                     
 
                 embeddings = embeddings.detach().cpu()
+                # print("Raw MOMENT embeddings:", embeddings.shape)
 
             elif 'tspulse' in model_name.lower():
                 if use_amp:
@@ -364,8 +365,47 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
             else:
                 raise ValueError(f"Model name '{model_name}' not recognized for embedding extraction")
                 
-            batch_size = x_data.shape[0] // (n_temporal_channels * n_spatial_channels)
-            embeddings = embeddings.view(batch_size, -1)
+            # batch_size = x_data.shape[0] // (n_temporal_channels * n_spatial_channels)
+            # embeddings = embeddings.view(batch_size, -1)
+            
+            #change
+            batch_size = x_data.shape[0] // (
+                n_temporal_channels * n_spatial_channels
+            )
+
+            # Number of original samples in this batch.
+            # For SERE raw skeleton input:
+            #   33 joints × 3 coordinates = 99 time series per sample.
+            if "moment" in model_name.lower() and embeddings.ndim == 4:
+                raw_n_spatial_channels = 33
+                raw_n_coordinate_channels = 3
+                raw_series_per_sample = (
+                    raw_n_spatial_channels * raw_n_coordinate_channels
+                )
+
+                batch_size = x_data.shape[0] // raw_series_per_sample
+
+                # [B * 99, 1, P, 1024] -> [B * 99, P, 1024]
+                embeddings = embeddings.squeeze(1)
+
+                n_patches = embeddings.shape[1]
+                embedding_dim = embeddings.shape[2]
+
+                # Directly store as [B, 99, P, 1024]
+                embeddings = embeddings.reshape(
+                    batch_size,
+                    raw_series_per_sample,
+                    n_patches,
+                    embedding_dim,
+                ).contiguous()
+
+                # print("MOMENT embeddings written to LMDB:", embeddings.shape)
+
+            else:
+                batch_size = x_data.shape[0] // (
+                    n_temporal_channels * n_spatial_channels
+                )
+                embeddings = embeddings.view(batch_size, -1)
             # ### DEBUG CHECKS: OUTPUT START ###
             # # Check embeddings for NaN/Inf before saving/chunking
             # if torch.isnan(embeddings).any() or torch.isinf(embeddings).any():
@@ -383,9 +423,15 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
 
             # The lmdb_pickle_dataset.py has sample_keys as dictionary containing metadata so we have to handle this
             if isinstance(sample_keys[0], dict):
-                stride = n_spatial_channels * n_temporal_channels
-                sample_keys = [sample_keys[i * stride]['sample_key'] for i in range(batch_size)]
+                if "moment" in model_name.lower():
+                    key_stride = raw_series_per_sample  # 99
+                else:
+                    key_stride = n_spatial_channels * n_temporal_channels
 
+                sample_keys = [
+                    sample_keys[i * key_stride]["sample_key"]
+                    for i in range(batch_size)
+                ]
             # Store results
             all_embeddings.append(embeddings)
             all_labels.append(y_label.cpu())

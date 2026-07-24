@@ -109,9 +109,9 @@ dataset_params = {
     },
     'sere': {
     'orig_sampling_rate': 30,
-    'n_spatial_channels': 33,
-    'n_temporal_channels': 3,
-    'n_samples': 1115,   # fill after counting#32-8456,64-2971,16-5131, 80-1115
+    'n_spatial_channels': 99,
+    'n_temporal_channels': 4,
+    'n_samples': 8456,   # fill after counting#32-8456,64-2971,16-5131, 80-1115
     'n_classes': 2    # change if your label isn't binary
 },
     'sere_video_comp': {
@@ -275,7 +275,8 @@ def load_moment_model(model_name, model_dir, device="cuda:0"):
     # IMPORTANT: use embedding mode (this is what makes outputs.embeddings populated)
     model = MOMENTPipeline.from_pretrained(
         ckpt_path,
-        model_kwargs={"task_name": "embedding"},
+        model_kwargs={"task_name": "embedding", "reduction" : "none"},
+        
         local_files_only=True,   # ensures no HF calls
     )
 
