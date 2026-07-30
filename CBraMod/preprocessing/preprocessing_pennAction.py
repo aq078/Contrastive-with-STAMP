@@ -61,15 +61,15 @@ from sklearn.model_selection import train_test_split
 ROOT_DIR = Path("dataset/Penn_Action")
 LABEL_DIR = ROOT_DIR / "labels"
 FRAME_DIR = ROOT_DIR / "frames"  # Used only for path validation/metadata.
-
-OUT_LMDB = Path(
-    "dataset/processed_pennaction/"
-    "pennaction_xy_bboxnorm_L32_S16.lmdb"
-)
-
-WINDOW_L = 32
+WINDOW_L = 64
 STRIDE = 16
 SEED = 42
+OUT_LMDB = Path(
+    "dataset/processed_pennaction/"
+    f"pennaction_xy_bboxnorm_L{WINDOW_L}_S{STRIDE}.lmdb"
+)
+
+
 
 # Fraction of PennAction's official training sequences used for validation.
 VAL_FRACTION = 0.15
@@ -90,7 +90,7 @@ PAD_SHORT_SEQUENCES = True
 STAMP_MASK_ALL_FALSE = True
 
 # Remove an existing LMDB directory before writing.
-OVERWRITE = False
+OVERWRITE = True
 
 # Manually exclude known problematic sequences before split construction.
 SKIP_SEQUENCE_IDS = {
