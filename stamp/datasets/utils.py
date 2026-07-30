@@ -156,6 +156,13 @@ dataset_params = {
     'n_samples': 2890,   # fill after counting
     'n_classes': 2    # change if your label isn't binary
 },   
+    'Penn_Action':{
+    'orig_sampling_rate': 30,
+    'n_spatial_channels':26,
+    'n_temporal_channels':1,
+    'n_samples': 8983,
+    'n_classes':15
+    }
 
 }
 
