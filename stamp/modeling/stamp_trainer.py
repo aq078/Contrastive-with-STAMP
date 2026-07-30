@@ -520,7 +520,7 @@ class STAMPModelingApproach(ModelingApproach):
         ):
         # Move tensors to the specified device
         seq_batch = seq_batch.to(self.device) # Shape: (batch_size, max_hr, n_channels, n_features)
-
+        
         if mode == 'train':
             self.model.optimizer.zero_grad()
         return_attention = (mode == 'test' and self.store_attention_weights)

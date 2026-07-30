@@ -157,7 +157,13 @@ dataset_params = {
     'n_samples': 2890,   # fill after counting
     'n_classes': 2    # change if your label isn't binary
 },   
-
+    'Penn_Action': {
+    'orig_sampling_rate': 30,
+    'n_spatial_channels': 26,
+    'n_temporal_channels': 16, #w=128
+    'n_samples': 3396,   # fill after counting
+    'n_classes': 15   # change if your label isn't binary
+}
 }
 
 def get_embeddings_dir(dataset_name, embedding_model_name, datasets_dir):

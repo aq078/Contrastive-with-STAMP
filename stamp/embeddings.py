@@ -368,30 +368,57 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
             # batch_size = x_data.shape[0] // (n_temporal_channels * n_spatial_channels)
             # embeddings = embeddings.view(batch_size, -1)
             
-            #change
-            batch_size = x_data.shape[0] // (
-                n_temporal_channels * n_spatial_channels
-            )
+            # Recover the number of ORIGINAL samples/windows directly from the
+            # labels. This avoids assuming that the shared STAMP channel config
+            # describes the raw skeleton layout.
+            batch_size = int(y_label.shape[0])
 
-            # Number of original samples in this batch.
-            # For SERE raw skeleton input:
-            #   33 joints × 3 coordinates = 99 time series per sample.
+            if batch_size <= 0:
+                raise RuntimeError("Encountered an empty batch during embedding generation.")
+
             if "moment" in model_name.lower() and embeddings.ndim == 4:
-                raw_n_spatial_channels = 33
-                raw_n_coordinate_channels = 3
-                raw_series_per_sample = (
-                    raw_n_spatial_channels * raw_n_coordinate_channels
-                )
+                # x_data is flattened by the raw-data collate function:
+                #   PennAction raw sample [13, 2, L] -> 26 series/sample
+                #   SERE raw sample       [33, 3, L] -> 99 series/sample
+                #
+                # Infer that raw series count from the actual batch rather than
+                # n_spatial_channels/n_temporal_channels, because those values
+                # may be shared with the downstream STAMP representation.
+                if x_data.shape[0] % batch_size != 0:
+                    raise RuntimeError(
+                        "Cannot infer raw series per sample: "
+                        f"x_data.shape[0]={x_data.shape[0]} is not divisible by "
+                        f"original batch_size={batch_size}."
+                    )
 
-                batch_size = x_data.shape[0] // raw_series_per_sample
+                raw_series_per_sample = x_data.shape[0] // batch_size
 
-                # [B * 99, 1, P, 1024] -> [B * 99, P, 1024]
+                # MOMENT reduction="none":
+                # [B * raw_series, 1, P, D] -> [B * raw_series, P, D]
+                if embeddings.shape[1] != 1:
+                    raise RuntimeError(
+                        "Unexpected MOMENT embedding shape for reduction='none': "
+                        f"{tuple(embeddings.shape)}. Expected singleton dim=1."
+                    )
+
                 embeddings = embeddings.squeeze(1)
 
                 n_patches = embeddings.shape[1]
                 embedding_dim = embeddings.shape[2]
 
-                # Directly store as [B, 99, P, 1024]
+                expected_rows = batch_size * raw_series_per_sample
+                if embeddings.shape[0] != expected_rows:
+                    raise RuntimeError(
+                        "MOMENT output row count does not match inferred raw layout: "
+                        f"embeddings.shape[0]={embeddings.shape[0]}, "
+                        f"expected={expected_rows}."
+                    )
+
+                # Save one embedding tensor per original sample:
+                #   [B, raw_series, P, D]
+                #
+                # PennAction W128 -> [B, 26, 16, 1024]
+                # SERE W64        -> [B, 99,  8, 1024]
                 embeddings = embeddings.reshape(
                     batch_size,
                     raw_series_per_sample,
@@ -399,12 +426,28 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
                     embedding_dim,
                 ).contiguous()
 
-                # print("MOMENT embeddings written to LMDB:", embeddings.shape)
+                if batch_idx == 0:
+                    print(
+                        "MOMENT no-reduction layout: "
+                        f"B={batch_size}, raw_series={raw_series_per_sample}, "
+                        f"patches={n_patches}, D={embedding_dim}, "
+                        f"saved_shape={tuple(embeddings.shape)}",
+                        flush=True,
+                    )
 
             else:
-                batch_size = x_data.shape[0] // (
-                    n_temporal_channels * n_spatial_channels
-                )
+                # Reduced embeddings and non-MOMENT models retain the historical
+                # flattened representation. Here the shared channel config is
+                # still used because no extra MOMENT patch axis is present.
+                expected_series = n_temporal_channels * n_spatial_channels
+                if x_data.shape[0] % expected_series != 0:
+                    raise RuntimeError(
+                        "Cannot recover batch size from configured channels: "
+                        f"x_data.shape[0]={x_data.shape[0]}, "
+                        f"n_temporal_channels={n_temporal_channels}, "
+                        f"n_spatial_channels={n_spatial_channels}."
+                    )
+                batch_size = x_data.shape[0] // expected_series
                 embeddings = embeddings.view(batch_size, -1)
             # ### DEBUG CHECKS: OUTPUT START ###
             # # Check embeddings for NaN/Inf before saving/chunking
@@ -424,7 +467,7 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
             # The lmdb_pickle_dataset.py has sample_keys as dictionary containing metadata so we have to handle this
             if isinstance(sample_keys[0], dict):
                 if "moment" in model_name.lower():
-                    key_stride = raw_series_per_sample  # 99
+                    key_stride = raw_series_per_sample
                 else:
                     key_stride = n_spatial_channels * n_temporal_channels
 

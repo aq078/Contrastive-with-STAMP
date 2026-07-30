@@ -122,16 +122,49 @@ class CustomLMDBEmbeddingDataset(Dataset):
         y_label = np.array(y_labels)  # Shape: (batch_size,)
         sample_keys = np.array(sample_keys)  # Shape: (batch_size,)
 
-        embedding_dim = x_data.shape[1] // self.channel_product
-        
-        # Reshape to (batch_size, n_spatial * n_temporal, embedding_dim)
-        x_data = x_data.reshape(x_data.shape[0], self.channel_product, embedding_dim)
-        
-        # Then reshape to (batch_size, n_spatial, n_temporal, embedding_dim)
-        x_data = x_data.reshape(x_data.shape[0], self.n_spatial_channels, self.n_temporal_channels, embedding_dim)
+        B = x_data.shape[0]
 
-        x_data = x_data.transpose(0, 2, 1, 3)  # Shape: (batch_size, n_temporal, n_spatial, embedding_dim)
+        # MOMENT embedding dimension
+        MOMENT_DIM = 1024
 
+        total_per_sample = x_data.shape[1]
+
+        # Raw trajectories/sample:
+        # PennAction = 13 * 2 = 26
+        if self.dataset_name == "Penn_Action":
+            raw_series = 26
+        else:
+            raw_series = self.channel_product
+
+        if total_per_sample % (raw_series * MOMENT_DIM) != 0:
+            raise ValueError(
+                f"Cannot reshape embedding: "
+                f"flat size={total_per_sample}, "
+                f"raw_series={raw_series}, "
+                f"MOMENT_DIM={MOMENT_DIM}"
+            )
+
+        n_patches = total_per_sample // (
+            raw_series * MOMENT_DIM
+        )
+
+        # Saved embedding order:
+        # [raw_series, patches, embedding_dim]
+        #
+        # [B, 26, 16, 1024] for PennAction W128
+        x_data = x_data.reshape(
+            B,
+            raw_series,
+            n_patches,
+            MOMENT_DIM,
+        )
+
+        # STAMP expects:
+        # [B, temporal, spatial, embedding_dim]
+        #
+        # temporal = MOMENT patches
+        # spatial  = raw trajectories
+        x_data = x_data.transpose(0, 2, 1, 3)
         if self.temporal_channel_selection is not None:
             # Apply temporal channel selection
             x_data = x_data[:, self.temporal_channel_selection, :, :] # Shape: (batch_size, selected_n_temporal, n_spatial, embedding_dim)
