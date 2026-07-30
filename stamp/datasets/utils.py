@@ -160,7 +160,7 @@ dataset_params = {
     'orig_sampling_rate': 30,
     'n_spatial_channels':26,
     'n_temporal_channels':1,
-    'n_samples': 5383,
+    'n_samples': 3396,
     'n_classes':15
     }
 

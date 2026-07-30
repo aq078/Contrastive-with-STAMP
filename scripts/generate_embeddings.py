@@ -35,9 +35,9 @@ if __name__ == '__main__':
             dataset_dir=processed_data_dir,
             batch_size=batch_size,
             return_mask=True,
-            pad_to_len=64,
+            pad_to_len=128,
             reshape_data=True,
-            orig_seq_len=64,
+            orig_seq_len=128,
             embedding_model_name=embedding_model_name
     )
 

@@ -69,7 +69,7 @@
                 "name": "EarlyStopping",
                 "patience": 15,
                 "min_delta": 0.001,
-                "tmp_dir": "temporary/Penn_Action/stage2_linear/Penn_Action/Penn_Action_MOMENT-1-large_nrs5_ne30_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/Penn_Action/Penn_Action_MOMENT-1-large_nrs5_ne30_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/Penn_Action/Penn_Action_MOMENT-1-large_nrs5_ne30_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/Penn_Action/Penn_Action_MOMENT-1-large_nrs5_ne30_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear",
+                "tmp_dir": "temporary/Penn_Action/stage2_linear/Penn_Action/Penn_Action_MOMENT-1-large_nrs5_ne30_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/Penn_Action/Penn_Action_MOMENT-1-large_nrs5_ne30_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/Penn_Action/Penn_Action_MOMENT-1-large_nrs5_ne30_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/Penn_Action/Penn_Action_MOMENT-1-large_nrs5_ne30_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/Penn_Action/Penn_Action_MOMENT-1-large_nrs5_ne30_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear",
                 "monitor_metric": "val_balanced_acc"
             },
             "checkpointing_params": null,
@@ -80,7 +80,7 @@
             "n_spatial_channels": 26,
             "load_pretrained_ckpt": "checkpoints/Penn_Action/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage1_supcon/best_seed{seed}.pth",
             "freeze_backbone": false,
-            "n_samples": 5383
+            "n_samples": 3396
         }
     },
     "embeddings_dir": "embeddings/Penn_Action/MOMENT-1-large",
@@ -88,8 +88,8 @@
         654,
         114
     ],
-    "commit_hash": "5f8b2acc5bb5085b9516720dc0b86b36eb807396",
-    "run_date": "2026-07-30 05:20:46",
+    "commit_hash": "a5c4f118a1eec79c8c58d55d3d277a9a6adc742e",
+    "run_date": "2026-07-30 06:34:56",
     "gpu_info": [
         {
             "gpu_id": 0,
@@ -98,14 +98,14 @@
         }
     ],
     "training_run_time_per_seed": {
-        "654": 40.70505142211914,
-        "114": 41.219239711761475
+        "654": 25.781566619873047,
+        "114": 26.13523554801941
     },
     "testing_run_time_per_seed": {
-        "654": 0.5801656246185303,
-        "114": 0.5661671161651611
+        "654": 0.7804832458496094,
+        "114": 0.35033679008483887
     },
-    "main_run_time": 84.01703405380249,
+    "main_run_time": 53.94293189048767,
     "total_parameters": 715023,
     "total_flops": 599519232
 }

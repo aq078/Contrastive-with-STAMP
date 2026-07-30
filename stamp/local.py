@@ -25,14 +25,14 @@ class MyLocalConfig(LocalConfig):
             'stress': '/path/to//benchmark_data/stress/processed',
             'tuab': '/path/to/benchmark_data/tuab/processed',
             'tuev': '/path/to/benchmark_data/tuev/processed',
-            'sere': 'dataset/processed_sere/sere_framecomp_world_xyz_L64_S16.lmdb',
+            'sere': 'dataset/processed_sere/sere_framecomp_world_xyz_L80_S16.lmdb',
             'sere_video_comp': 'dataset/processed_sere/sere_video_comp_world_xyz_T256.lmdb',
             'sere_video_smooth': 'dataset/processed_sere/sere_video_smooth_world_xyz_T256.lmdb',
             'sere_video_spast': 'dataset/processed_sere/sere_video_spast_world_xyz_T256.lmdb',
             'sere_video_rom': 'dataset/processed_sere/sere_video_rom_world_xyz_T256.lmdb',
             'sere_event_comp': 'dataset/processed_sere/sere_framecomp_event_xyz_T128.lmdb',
             'sere_comp_hybrid': 'dataset/processed_sere/sere_comp_hybrid_train_event_valtest_random_xyz.lmdb',
-            'Penn_Action': 'dataset/processed_pennaction/pennaction_xy_bboxnorm_L64_S16.lmdb'
+            'Penn_Action': 'dataset/processed_pennaction/pennaction_xy_bboxnorm_L128_S16.lmdb'
 
         }
 

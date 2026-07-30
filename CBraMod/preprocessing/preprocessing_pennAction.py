@@ -61,7 +61,7 @@ from sklearn.model_selection import train_test_split
 ROOT_DIR = Path("dataset/Penn_Action")
 LABEL_DIR = ROOT_DIR / "labels"
 FRAME_DIR = ROOT_DIR / "frames"  # Used only for path validation/metadata.
-WINDOW_L = 64
+WINDOW_L = 128
 STRIDE = 16
 SEED = 42
 OUT_LMDB = Path(
