@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import os
 import torch
 import torch.nn as nn
@@ -10,6 +11,33 @@ from stamp.modeling.modeling_approach import ModelingApproach
 from stamp.modeling.early_stopping import build_early_stopping
 from stamp.modeling.utils import calculate_binary_performance_metrics, calculate_multiclass_performance_metrics
 from stamp.modeling.stamp import STAMP
+from sklearn.metrics import (
+    accuracy_score,
+    balanced_accuracy_score,
+    classification_report,
+    cohen_kappa_score,
+    confusion_matrix,
+    f1_score,
+)
+
+
+PENNACTION_ACTION_NAMES = [
+    "baseball_pitch",
+    "baseball_swing",
+    "bench_press",
+    "bowling",
+    "clean_and_jerk",
+    "golf_swing",
+    "jump_rope",
+    "jumping_jacks",
+    "pull_ups",
+    "push_ups",
+    "sit_ups",
+    "squats",
+    "strumming_guitar",
+    "tennis_forehand",
+    "tennis_serve",
+]
 
 class STAMPModelingApproach(ModelingApproach):
     def __init__(
@@ -441,6 +469,140 @@ class STAMPModelingApproach(ModelingApproach):
         pred_df.index = test_sample_keys
         pred_df.columns = ['pred']
 
+        # --------------------------------------------------------
+        # CLASS-LEVEL TEST DIAGNOSTICS
+        # --------------------------------------------------------
+        test_diagnostics = None
+
+        if self.problem_type == 'multiclass':
+            truths = np.asarray(test_labels, dtype=np.int64)
+            predictions = pred_df['pred'].to_numpy(dtype=np.int64)
+
+            if self.n_classes == len(PENNACTION_ACTION_NAMES):
+                action_names = PENNACTION_ACTION_NAMES
+            else:
+                action_names = [
+                    f'class_{class_idx}'
+                    for class_idx in range(self.n_classes)
+                ]
+
+            labels = list(range(self.n_classes))
+
+            test_cm = confusion_matrix(
+                truths,
+                predictions,
+                labels=labels,
+            )
+
+            test_report_text = classification_report(
+                truths,
+                predictions,
+                labels=labels,
+                target_names=action_names,
+                digits=4,
+                zero_division=0,
+            )
+
+            test_report_dict = classification_report(
+                truths,
+                predictions,
+                labels=labels,
+                target_names=action_names,
+                output_dict=True,
+                zero_division=0,
+            )
+
+            test_accuracy = accuracy_score(
+                truths,
+                predictions,
+            )
+
+            test_balanced_accuracy = balanced_accuracy_score(
+                truths,
+                predictions,
+            )
+
+            test_weighted_f1 = f1_score(
+                truths,
+                predictions,
+                average='weighted',
+                zero_division=0,
+            )
+
+            test_macro_f1 = f1_score(
+                truths,
+                predictions,
+                average='macro',
+                zero_division=0,
+            )
+
+            test_cohen_kappa = cohen_kappa_score(
+                truths,
+                predictions,
+            )
+
+            print()
+            print('=' * 70)
+            print('STAMP TEST CLASS-LEVEL DIAGNOSTICS')
+            print('=' * 70)
+            print(f'Accuracy:          {test_accuracy:.4f}')
+            print(f'Balanced accuracy: {test_balanced_accuracy:.4f}')
+            print(f'Weighted F1:       {test_weighted_f1:.4f}')
+            print(f'Macro F1:          {test_macro_f1:.4f}')
+            print(f'Cohen kappa:       {test_cohen_kappa:.4f}')
+
+            print(
+                '\nTest confusion matrix '
+                '(rows=true, columns=predicted):'
+            )
+            print(test_cm)
+
+            print('\nTest classification report:\n')
+            print(test_report_text)
+
+            print('\nPerformance by action class:')
+            print(
+                f"{'Action':22s} "
+                f"{'Precision':>10s} "
+                f"{'Recall':>10s} "
+                f"{'F1':>10s} "
+                f"{'Support':>8s}"
+            )
+            print('-' * 66)
+
+            per_class_rows = []
+
+            for action_name in action_names:
+                values = test_report_dict[action_name]
+
+                row = {
+                    'action_class': action_name,
+                    'precision': float(values['precision']),
+                    'recall': float(values['recall']),
+                    'f1_score': float(values['f1-score']),
+                    'support': int(values['support']),
+                }
+                per_class_rows.append(row)
+
+                print(
+                    f"{action_name:22s} "
+                    f"{row['precision']:10.4f} "
+                    f"{row['recall']:10.4f} "
+                    f"{row['f1_score']:10.4f} "
+                    f"{row['support']:8d}"
+                )
+
+            test_diagnostics = {
+                'accuracy': float(test_accuracy),
+                'balanced_accuracy': float(test_balanced_accuracy),
+                'weighted_f1': float(test_weighted_f1),
+                'macro_f1': float(test_macro_f1),
+                'cohen_kappa': float(test_cohen_kappa),
+                'confusion_matrix': test_cm,
+                'classification_report': test_report_dict,
+                'per_class': per_class_rows,
+            }
+
         extra_info = {
             'best_epoch': self.early_stopping.best_epoch if self.use_early_stopping else None,
             'train_main_losses': self.train_main_losses,
@@ -460,6 +622,7 @@ class STAMPModelingApproach(ModelingApproach):
             'attn_weights': attn_weights_dict,
             'prob_df': prob_df,
             'test_labels': test_labels,
+            'test_diagnostics': test_diagnostics,
             'epoch_run_times': self.epoch_run_times,
             'inference_run_times': inference_run_times
         }
