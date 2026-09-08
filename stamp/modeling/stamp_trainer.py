@@ -262,6 +262,13 @@ class STAMPModelingApproach(ModelingApproach):
             train_labels = []
             print('Training...')
             for seq_batch, label_batch, sample_key_batch in train_iterator:
+                if seq_batch.shape[-1] != 1024:
+                    print("\n===== BAD EMBEDDING BATCH =====")
+                    print("shape:", seq_batch.shape)
+                    print("keys:")
+                    for k in sample_key_batch:
+                        print(k)
+                    raise RuntimeError("Found embedding with feature dim != 1024")
 
                 if self.problem_type == 'binary':
                     label_batch = label_batch.to(torch.float32)

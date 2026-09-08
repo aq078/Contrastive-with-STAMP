@@ -356,6 +356,17 @@ class STAMP(nn.Module):
         if self.use_batch_norm:
             x = self.apply_batch_norm(x, B, T, S, input_dim)
         elif self.use_instance_norm:
+            # print("DEBUG x before instance norm:", x.shape)
+            assert x.shape[-1] == 1024, (
+                f"BAD INPUT SHAPE: {x.shape}, expected last dim 1024"
+            )
+            assert x.shape[1] == 8, (
+                f"BAD TEMPORAL DIM: {x.shape}, expected T=8"
+            )
+            assert x.shape[2] == 99, (
+                f"BAD SPATIAL DIM: {x.shape}, expected S=99"
+            )
+            # print("DEBUG B,T,S,input_dim:", B, T, S, input_dim)
             x = self.apply_instance_norm(x, B, T, S, input_dim)
 
         # Project to model dim D if needed
@@ -519,6 +530,11 @@ class STAMP(nn.Module):
     def apply_instance_norm(self, x, B, T, S, input_dim):
         # Reshape for instance norm: (B, T, S, input_dim) -> (B, input_dim, T*S)
         x = x.permute(0, 3, 1, 2).reshape(B, input_dim, T * S)
+        assert x.shape[1] == self.data_norm.num_features, (
+            f"InstanceNorm mismatch: x={x.shape}, "
+            f"num_features={self.data_norm.num_features}"
+        )
+
         x = self.data_norm(x)  # (B, input_dim, T*S)
         x = x.reshape(B, input_dim, T, S).permute(0, 2, 3, 1)  # Back to (B, T, S, input_dim)
         return x

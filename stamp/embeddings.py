@@ -34,6 +34,12 @@ def build_embeddings(dataset, available_gpus, chunk_size, temp_chunks_dir,
     print(f"Starting distributed embedding on {len(available_gpus)} GPUs: {available_gpus}")
     print(f"Temporary chunks will be saved to: {temp_chunks_dir}")
 
+    if os.path.exists(temp_chunks_dir):
+        print(f"Removing stale temporary chunks: {temp_chunks_dir}")
+        shutil.rmtree(temp_chunks_dir)
+
+    os.makedirs(temp_chunks_dir, exist_ok=True)
+    
     for mode in ['train', 'val', 'test']:
         print(f"Processing mode: {mode}")
 
@@ -297,9 +303,11 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
                 if (~row_has_any).any():
                     bad_rows = (~row_has_any).nonzero(as_tuple=True)[0]
                     mask[bad_rows, 0] = True
-                
+                print("x_data before MOMENT:", x_data.shape)
+                print("mask before MOMENT:", mask.shape)
                 if use_amp:
                     with torch.cuda.amp.autocast():
+                        
                         outputs = model(x_enc=x_data, input_mask=mask , reduction="none")
                 else:
                     outputs = model(x_enc=x_data, input_mask=mask , reduction="none")
@@ -330,7 +338,10 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
                     
 
                 embeddings = embeddings.detach().cpu()
-                # print("Raw MOMENT embeddings:", embeddings.shape)
+                print("Raw MOMENT embeddings:", embeddings.shape)
+                assert embeddings.shape[-1] == 1024, (
+                    f"MOMENT returned wrong feature dimension: {embeddings.shape}"
+                )
 
             elif 'tspulse' in model_name.lower():
                 if use_amp:
@@ -398,7 +409,9 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
                     n_patches,
                     embedding_dim,
                 ).contiguous()
-
+                assert embeddings.shape[1:] == (99, 8, 1024), (
+                    f"Unexpected L64 embedding shape: {embeddings.shape}"
+                )
                 # print("MOMENT embeddings written to LMDB:", embeddings.shape)
 
             else:
