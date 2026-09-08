@@ -440,14 +440,94 @@ class SupConSTAMPModelingApproach(ModelingApproach):
         dummy_probs = []
         dummy_preds = []
 
-        with torch.no_grad():
-            for _seq_batch, label_batch, sample_key_batch in test_data_loader:
-                test_sample_keys.extend(sample_key_batch)
-                test_labels.extend(label_batch.numpy().tolist())
+        test_metadata = []
 
-                # dummy
-                dummy_probs.append(torch.zeros(len(sample_key_batch), 1))
-                dummy_preds.append(torch.zeros(len(sample_key_batch), 1))
+        with torch.no_grad():
+            for batch in test_data_loader:
+                if len(batch) == 4:
+                    (
+                        _seq_batch,
+                        label_batch,
+                        sample_key_batch,
+                        sample_metadata_batch,
+                    ) = batch
+                elif len(batch) == 3:
+                    (
+                        _seq_batch,
+                        label_batch,
+                        sample_key_batch,
+                    ) = batch
+                    sample_metadata_batch = None
+                else:
+                    raise RuntimeError(
+                        "Unexpected test batch structure. "
+                        f"Expected 3 or 4 items, got {len(batch)}."
+                    )
+
+                normalized_keys = [
+                    (
+                        key.decode()
+                        if isinstance(key, bytes)
+                        else str(key)
+                    )
+                    for key in sample_key_batch
+                ]
+
+                test_sample_keys.extend(
+                    normalized_keys
+                )
+                test_labels.extend(
+                    label_batch.cpu().numpy().tolist()
+                )
+
+                if sample_metadata_batch is None:
+                    test_metadata.extend(
+                        [None] * len(normalized_keys)
+                    )
+                else:
+                    if (
+                        len(sample_metadata_batch)
+                        != len(normalized_keys)
+                    ):
+                        raise RuntimeError(
+                            "Metadata batch size does not match "
+                            "sample-key batch size: "
+                            f"{len(sample_metadata_batch)} vs "
+                            f"{len(normalized_keys)}"
+                        )
+
+                    for metadata in sample_metadata_batch:
+                        if metadata is None:
+                            test_metadata.append(None)
+                        elif isinstance(metadata, dict):
+                            test_metadata.append(
+                                dict(metadata)
+                            )
+                        else:
+                            raise TypeError(
+                                "Expected test metadata items to be "
+                                f"dict or None, got "
+                                f"{type(metadata).__name__}."
+                            )
+
+                # SupCon stage 1 has no meaningful classifier outputs unless
+                # train_classifier=True. Keep dummy outputs for compatibility
+                # with the experiment runner.
+                batch_size = len(normalized_keys)
+                dummy_probs.append(
+                    torch.zeros(
+                        batch_size,
+                        1,
+                        dtype=torch.float32,
+                    )
+                )
+                dummy_preds.append(
+                    torch.zeros(
+                        batch_size,
+                        1,
+                        dtype=torch.long,
+                    )
+                )
 
         prob_df = pd.DataFrame(torch.cat(dummy_probs).numpy(), index=test_sample_keys, columns=["prob"])
         pred_df = pd.DataFrame(torch.cat(dummy_preds).numpy(), index=test_sample_keys, columns=["pred"])
@@ -459,6 +539,7 @@ class SupConSTAMPModelingApproach(ModelingApproach):
             "val_supcon_losses": self.val_losses,
             "prob_df": prob_df,
             "test_labels": test_labels,
+            "test_metadata": test_metadata,
             "epoch_run_times": self.epoch_run_times,
             "best_epoch": None,
 

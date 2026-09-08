@@ -5,6 +5,7 @@ from tqdm import tqdm
 import subprocess
 import datetime
 import json
+import pickle
 import gc
 import socket
 from torch.utils.data import DataLoader, Subset
@@ -87,6 +88,8 @@ def build_embeddings(dataset, available_gpus, chunk_size, temp_chunks_dir,
         'run_time': total_time,
         'available_gpus': available_gpus,
         'gpu_info': gpu_info,
+        'preserve_sample_metadata': True,
+        'sample_metadata_filename': 'sample_metadata.pkl',
     }
 
     try:
@@ -229,6 +232,7 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
     all_embeddings = []
     all_labels = []
     all_sample_keys = []
+    all_sample_metadata = []
     processed_samples = 0
     chunk_idx = 0
 
@@ -381,29 +385,131 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
             # ### DEBUG CHECKS: OUTPUT END ###
 
 
-            # The lmdb_pickle_dataset.py has sample_keys as dictionary containing metadata so we have to handle this
+            # ------------------------------------------------------------
+            # Normalize one key + metadata dictionary per ORIGINAL sample.
+            #
+            # Some raw-data collate functions repeat the same metadata once
+            # for every flattened univariate series. For PennAction that is
+            # 13 joints x 2 coordinates = 26 entries per original window.
+            # ------------------------------------------------------------
+            normalized_keys = []
+            normalized_metadata = []
+
+            if len(sample_keys) == 0:
+                raise RuntimeError(
+                    f"Batch {batch_idx} returned no sample keys."
+                )
+
             if isinstance(sample_keys[0], dict):
                 stride = n_spatial_channels * n_temporal_channels
-                sample_keys = [sample_keys[i * stride]['sample_key'] for i in range(batch_size)]
+
+                if len(sample_keys) == batch_size:
+                    selected_items = sample_keys
+                elif len(sample_keys) == batch_size * stride:
+                    selected_items = [
+                        sample_keys[i * stride]
+                        for i in range(batch_size)
+                    ]
+                else:
+                    raise RuntimeError(
+                        "Unexpected metadata/key count: "
+                        f"len(sample_keys)={len(sample_keys)}, "
+                        f"batch_size={batch_size}, stride={stride}."
+                    )
+
+                for item in selected_items:
+                    item = dict(item)
+
+                    sample_key = item.get(
+                        "sample_key",
+                        item.get("key"),
+                    )
+                    if sample_key is None:
+                        raise KeyError(
+                            "Metadata dictionary does not contain "
+                            "'sample_key' or 'key'. "
+                            f"Available keys: {sorted(item.keys())}"
+                        )
+
+                    # Some loaders put the source metadata under "meta";
+                    # others flatten it into the same dictionary.
+                    source_meta = item.get("meta")
+                    if isinstance(source_meta, dict):
+                        metadata = dict(source_meta)
+                        for key_name, value in item.items():
+                            if key_name not in {"meta", "sample_key", "key"}:
+                                metadata.setdefault(key_name, value)
+                    else:
+                        metadata = {
+                            key_name: value
+                            for key_name, value in item.items()
+                            if key_name not in {"sample_key", "key"}
+                        }
+
+                    metadata["sample_key"] = str(sample_key)
+
+                    normalized_keys.append(str(sample_key))
+                    normalized_metadata.append(metadata)
+
+            else:
+                if len(sample_keys) != batch_size:
+                    raise RuntimeError(
+                        "Expected one sample key per original sample, but got "
+                        f"{len(sample_keys)} keys for batch_size={batch_size}."
+                    )
+
+                for sample_key in sample_keys:
+                    sample_key = str(sample_key)
+                    normalized_keys.append(sample_key)
+
+                    # Sequence ID can still be recovered from PennAction keys
+                    # such as "0001_w0000". Original sequence length cannot be
+                    # recovered from the key alone, so it remains absent unless
+                    # the raw loader returns metadata dictionaries.
+                    if "_w" in sample_key:
+                        sequence_id = sample_key.split("_w", 1)[0]
+                    else:
+                        sequence_id = sample_key
+
+                    normalized_metadata.append(
+                        {
+                            "sample_key": sample_key,
+                            "sequence_id": sequence_id,
+                        }
+                    )
+
+            if len(normalized_keys) != batch_size:
+                raise RuntimeError(
+                    "Normalized key count does not match embedding batch: "
+                    f"{len(normalized_keys)} vs {batch_size}."
+                )
 
             # Store results
             all_embeddings.append(embeddings)
             all_labels.append(y_label.cpu())
-            all_sample_keys.extend(sample_keys)
+            all_sample_keys.extend(normalized_keys)
+            all_sample_metadata.extend(normalized_metadata)
 
             processed_samples += batch_size
 
             # Save chunk if needed
             if processed_samples >= chunk_size:
                 save_embedding_chunk_distributed(
-                    embeddings_list=all_embeddings, labels_list=all_labels, sample_keys_list=all_sample_keys,
-                    output_dir=output_dir, chunk_idx=chunk_idx, rank=rank, model_name=model_name
+                    embeddings_list=all_embeddings,
+                    labels_list=all_labels,
+                    sample_keys_list=all_sample_keys,
+                    sample_metadata_list=all_sample_metadata,
+                    output_dir=output_dir,
+                    chunk_idx=chunk_idx,
+                    rank=rank,
+                    model_name=model_name
                 )
 
                 # Clear memory
                 all_embeddings.clear()
                 all_labels.clear()
                 all_sample_keys.clear()
+                all_sample_metadata.clear()
                 chunk_idx += 1
                 processed_samples = 0
 
@@ -417,122 +523,361 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
     # Save final chunk
     if all_embeddings:
         save_embedding_chunk_distributed(
-            embeddings_list=all_embeddings, labels_list=all_labels, sample_keys_list=all_sample_keys,
-            output_dir=output_dir, chunk_idx=chunk_idx, rank=rank, model_name=model_name
+            embeddings_list=all_embeddings,
+            labels_list=all_labels,
+            sample_keys_list=all_sample_keys,
+            sample_metadata_list=all_sample_metadata,
+            output_dir=output_dir,
+            chunk_idx=chunk_idx,
+            rank=rank,
+            model_name=model_name
         )
 
     return output_dir
 
-def save_embedding_chunk_distributed(embeddings_list, labels_list, sample_keys_list,
-                                   output_dir, chunk_idx, rank, model_name):
-    """Save embeddings chunk for distributed processing"""
-    chunk_embeddings = torch.cat(embeddings_list, dim=0) # (total_samples, full_dim)
-    chunk_labels = torch.cat(labels_list, dim=0)
+def save_embedding_chunk_distributed(
+    embeddings_list,
+    labels_list,
+    sample_keys_list,
+    sample_metadata_list,
+    output_dir,
+    chunk_idx,
+    rank,
+    model_name,
+):
+    """Save one distributed embedding chunk and its source metadata."""
+    chunk_embeddings = torch.cat(
+        embeddings_list,
+        dim=0,
+    )
+    chunk_labels = torch.cat(
+        labels_list,
+        dim=0,
+    )
 
-    base_filename = f'chunk_rank{rank}_{chunk_idx:04d}'
+    if len(sample_keys_list) != len(chunk_embeddings):
+        raise RuntimeError(
+            "Key/embedding count mismatch while saving chunk: "
+            f"{len(sample_keys_list)} vs {len(chunk_embeddings)}"
+        )
 
-    # Save as separate NPY files for optimal performance
-    embeddings_file = os.path.join(output_dir, f'{base_filename}_embeddings.npy')
-    labels_file = os.path.join(output_dir, f'{base_filename}_labels.npy')
-    keys_file = os.path.join(output_dir, f'{base_filename}_keys.npy')
+    if len(sample_metadata_list) != len(chunk_embeddings):
+        raise RuntimeError(
+            "Metadata/embedding count mismatch while saving chunk: "
+            f"{len(sample_metadata_list)} vs {len(chunk_embeddings)}"
+        )
 
-    if 'chronos' in model_name.lower():
-        # Chronos outputs bfloat16 by default, convert to float32 for compatibility
-        chunk_embeddings = chunk_embeddings.to(torch.float32).numpy()
+    base_filename = f"chunk_rank{rank}_{chunk_idx:04d}"
+
+    embeddings_file = os.path.join(
+        output_dir,
+        f"{base_filename}_embeddings.npy",
+    )
+    labels_file = os.path.join(
+        output_dir,
+        f"{base_filename}_labels.npy",
+    )
+    keys_file = os.path.join(
+        output_dir,
+        f"{base_filename}_keys.npy",
+    )
+    metadata_file = os.path.join(
+        output_dir,
+        f"{base_filename}_metadata.npy",
+    )
+
+    if "chronos" in model_name.lower():
+        chunk_embeddings = (
+            chunk_embeddings
+            .to(torch.float32)
+            .numpy()
+        )
     else:
-        chunk_embeddings = chunk_embeddings.numpy().astype(np.float32)
+        chunk_embeddings = (
+            chunk_embeddings
+            .numpy()
+            .astype(np.float32)
+        )
 
-    np.save(embeddings_file, chunk_embeddings)
-    np.save(labels_file, chunk_labels.numpy())
-    sample_keys_array = np.array(sample_keys_list, dtype=object)
-    np.save(keys_file, sample_keys_array)
+    np.save(
+        embeddings_file,
+        chunk_embeddings,
+    )
+    np.save(
+        labels_file,
+        chunk_labels.numpy(),
+    )
+    np.save(
+        keys_file,
+        np.asarray(sample_keys_list, dtype=object),
+    )
+    np.save(
+        metadata_file,
+        np.asarray(sample_metadata_list, dtype=object),
+    )
 
-    if rank == 0:  # Reduce print spam
-        sequences = len(chunk_embeddings)
-        samples = sequences // 160 if sequences > 160 else sequences
-        print(f"GPU {rank} saved chunk {chunk_idx}: {sequences:,} sequences ({samples:,} samples)")
+    if rank == 0:
+        print(
+            f"GPU {rank} saved chunk {chunk_idx}: "
+            f"{len(chunk_embeddings):,} samples",
+            flush=True,
+        )
 
-def merge_distributed_chunks(output_dir, split_name, output_path, cleanup_chunks, map_size):
+
+def merge_distributed_chunks(
+    output_dir,
+    split_name,
+    output_path,
+    cleanup_chunks,
+    map_size,
+):
     """
-    Merge distributed chunks from npy files and save to LMDB format
+    Merge distributed chunks into the embedding LMDB and save one metadata
+    dictionary per embedding sample beside that LMDB.
 
-    Args:
-        output_dir: Directory containing rank_* subdirectories
-        split_name: Name of the split ('train', 'val', 'test')
-        n_temporal_channels: Number of temporal channels
-        n_spatial_channels: Number of spatial channels
-        output_path: Path to save LMDB file
-        cleanup_chunks: Whether to clean up temporary chunk files
-        map_size: Maximum size of LMDB database in bytes
+    Output sidecar:
+        <output_path>/sample_metadata.pkl
+
+    Structure:
+        {
+            sample_key: {
+                "sample_key": ...,
+                "sequence_id": ...,
+                "nframes": ...,
+                "window_start_idx": ...,
+                ...
+            }
+        }
     """
-    print("Merging distributed chunks to HDF5...")
+    print("Merging distributed chunks to LMDB...")
 
-    # Find all rank directories
-    rank_dirs = [d for d in os.listdir(output_dir) if d.startswith('rank_')]
+    rank_dirs = [
+        directory
+        for directory in os.listdir(output_dir)
+        if directory.startswith("rank_")
+    ]
     rank_dirs.sort()
 
     if not rank_dirs:
-        raise ValueError(f"No rank directories found in {output_dir}")
+        raise ValueError(
+            f"No rank directories found in {output_dir}"
+        )
 
-    # Create LMDB database
-    with LMDBWriter(output_path, map_size=map_size) as writer:
+    sample_metadata_by_key = {}
+
+    with LMDBWriter(
+        output_path,
+        map_size=map_size,
+    ) as writer:
         total_chunks = 0
         sample_idx = 0
 
         for rank_dir in rank_dirs:
-            rank_path = os.path.join(output_dir, rank_dir)
+            rank_path = os.path.join(
+                output_dir,
+                rank_dir,
+            )
 
-            # Find unique chunk bases (look for _embeddings.npy files)
             chunk_bases = set()
-            for f in os.listdir(rank_path):
-                if f.endswith('_embeddings.npy'):
-                    base = f.replace('_embeddings.npy', '')
-                    chunk_bases.add(base)
+            for filename in os.listdir(rank_path):
+                if filename.endswith("_embeddings.npy"):
+                    chunk_bases.add(
+                        filename.replace(
+                            "_embeddings.npy",
+                            "",
+                        )
+                    )
 
-            chunk_bases = sorted(list(chunk_bases))
+            chunk_bases = sorted(chunk_bases)
             total_chunks += len(chunk_bases)
 
-            print(f"Loading {len(chunk_bases)} chunks from {rank_dir}")
+            print(
+                f"Loading {len(chunk_bases)} chunks "
+                f"from {rank_dir}"
+            )
 
-            for chunk_base in tqdm(chunk_bases, desc=f"Loading {rank_dir}"):
-                embeddings_file = os.path.join(rank_path, f'{chunk_base}_embeddings.npy')
-                labels_file = os.path.join(rank_path, f'{chunk_base}_labels.npy')
-                keys_file = os.path.join(rank_path, f'{chunk_base}_keys.npy')
+            for chunk_base in tqdm(
+                chunk_bases,
+                desc=f"Loading {rank_dir}",
+            ):
+                embeddings_file = os.path.join(
+                    rank_path,
+                    f"{chunk_base}_embeddings.npy",
+                )
+                labels_file = os.path.join(
+                    rank_path,
+                    f"{chunk_base}_labels.npy",
+                )
+                keys_file = os.path.join(
+                    rank_path,
+                    f"{chunk_base}_keys.npy",
+                )
+                metadata_file = os.path.join(
+                    rank_path,
+                    f"{chunk_base}_metadata.npy",
+                )
 
-                # Load NPY files (much faster than pickle)
-                embeddings = np.load(embeddings_file)  # Shape: (N, embedding_dim)
-                labels = np.load(labels_file)
-                sample_keys = np.load(keys_file, allow_pickle=True)  # Object array of strings
+                embeddings = np.load(
+                    embeddings_file,
+                )
+                labels = np.load(
+                    labels_file,
+                )
+                sample_keys = np.load(
+                    keys_file,
+                    allow_pickle=True,
+                )
 
-                # Store each embedding individually in LMDB
-                for embedding, label, sample_key in zip(embeddings, labels, sample_keys):
-                    # Use the sample_key directly as the filename
-                    # Clean the sample_key to ensure it's a valid filename
-                    clean_sample_key = str(sample_key).replace('\x00', '').strip()
+                if os.path.exists(metadata_file):
+                    sample_metadata = np.load(
+                        metadata_file,
+                        allow_pickle=True,
+                    )
+                else:
+                    # Backward compatibility for old temporary chunks.
+                    sample_metadata = np.asarray(
+                        [None] * len(sample_keys),
+                        dtype=object,
+                    )
+
+                lengths = {
+                    len(embeddings),
+                    len(labels),
+                    len(sample_keys),
+                    len(sample_metadata),
+                }
+                if len(lengths) != 1:
+                    raise RuntimeError(
+                        f"Chunk {chunk_base} has inconsistent lengths: "
+                        f"embeddings={len(embeddings)}, "
+                        f"labels={len(labels)}, "
+                        f"keys={len(sample_keys)}, "
+                        f"metadata={len(sample_metadata)}"
+                    )
+
+                for (
+                    embedding,
+                    label,
+                    sample_key,
+                    metadata,
+                ) in zip(
+                    embeddings,
+                    labels,
+                    sample_keys,
+                    sample_metadata,
+                ):
+                    clean_sample_key = (
+                        str(sample_key)
+                        .replace("\x00", "")
+                        .strip()
+                    )
+
                     if not clean_sample_key:
-                        clean_sample_key = f"{split_name}_sample_{sample_idx}"
+                        clean_sample_key = (
+                            f"{split_name}_sample_{sample_idx}"
+                        )
 
-                    # Store embedding with label in key format
-                    # ### DEBUG CHECKS: WRITE START ###
-                    # # Final safety check: never write non-finite embeddings to LMDB
-                    # if not np.isfinite(embedding).all():
-                    #     print('SKIP writing non-finite embedding:', clean_sample_key,
-                    #           'nan%', float(np.isnan(embedding).mean()),
-                    #           'inf%', float(np.isinf(embedding).mean()),
-                    #           'shape', getattr(embedding, 'shape', None))
-                    #     continue
-                    ### DEBUG CHECKS: WRITE END ###
-                    writer.write_sample(embedding, int(label), clean_sample_key, dtype=np.float32)
+                    if clean_sample_key in sample_metadata_by_key:
+                        raise KeyError(
+                            "Duplicate embedding sample key while merging: "
+                            f"{clean_sample_key}"
+                        )
+
+                    writer.write_sample(
+                        embedding,
+                        int(label),
+                        clean_sample_key,
+                        dtype=np.float32,
+                    )
+
+                    if metadata is None:
+                        metadata = {}
+                    elif isinstance(metadata, np.ndarray) and metadata.shape == ():
+                        metadata = metadata.item()
+
+                    if not isinstance(metadata, dict):
+                        raise TypeError(
+                            f"Metadata for {clean_sample_key} must be dict, "
+                            f"got {type(metadata).__name__}"
+                        )
+
+                    metadata = dict(metadata)
+                    metadata["sample_key"] = clean_sample_key
+                    metadata["label"] = int(label)
+                    metadata["split"] = split_name
+
+                    if (
+                        "sequence_id" not in metadata
+                        and "_w" in clean_sample_key
+                    ):
+                        metadata["sequence_id"] = (
+                            clean_sample_key.split("_w", 1)[0]
+                        )
+
+                    sample_metadata_by_key[
+                        clean_sample_key
+                    ] = metadata
+
                     sample_idx += 1
 
-    print(f"Merged {sample_idx:,} embeddings from {total_chunks} chunks across {len(rank_dirs)} GPUs")
-    print(f"Saved to LMDB: {output_path}")
+    os.makedirs(
+        output_path,
+        exist_ok=True,
+    )
 
-    # Cleanup chunks if requested
+    metadata_path = os.path.join(
+        output_path,
+        "sample_metadata.pkl",
+    )
+    with open(metadata_path, "wb") as metadata_handle:
+        pickle.dump(
+            sample_metadata_by_key,
+            metadata_handle,
+            protocol=pickle.HIGHEST_PROTOCOL,
+        )
+
+    metadata_summary = {
+        "split": split_name,
+        "n_samples": len(sample_metadata_by_key),
+        "metadata_path": metadata_path,
+        "fields": sorted(
+            {
+                field
+                for metadata in sample_metadata_by_key.values()
+                for field in metadata.keys()
+            }
+        ),
+    }
+    summary_path = os.path.join(
+        output_path,
+        "sample_metadata_summary.json",
+    )
+    with open(
+        summary_path,
+        "w",
+        encoding="utf-8",
+    ) as summary_handle:
+        json.dump(
+            metadata_summary,
+            summary_handle,
+            indent=4,
+        )
+
+    print(
+        f"Merged {sample_idx:,} embeddings from "
+        f"{total_chunks} chunks across {len(rank_dirs)} GPUs"
+    )
+    print(f"Saved embedding LMDB: {output_path}")
+    print(f"Saved sample metadata: {metadata_path}")
+
     if cleanup_chunks:
-        cleanup_distributed_chunks(output_dir, keep_merged=False)
+        cleanup_distributed_chunks(
+            output_dir,
+            keep_merged=False,
+        )
 
     return output_path
+
 
 def cleanup_distributed_chunks(output_dir, keep_merged=False):
     """Clean up temporary chunk files"""

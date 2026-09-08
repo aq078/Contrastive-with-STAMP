@@ -6,6 +6,7 @@ import torch.nn as nn
 from os import (remove as os_remove, path as os_path)
 from tqdm import tqdm
 import time
+from collections import defaultdict
 from fvcore.nn import FlopCountAnalysis
 from stamp.modeling.modeling_approach import ModelingApproach
 from stamp.modeling.early_stopping import build_early_stopping
@@ -415,78 +416,220 @@ class STAMPModelingApproach(ModelingApproach):
 
     def predict(
         self,
-        test_data_loader
-        ):
+        test_data_loader,
+    ):
+        """
+        Run test inference and report both window-level and sequence-level
+        diagnostics.
 
+        Expected test batch:
+            seq_batch,
+            label_batch,
+            sample_key_batch,
+            sample_metadata_batch
+
+        For sequence-level evaluation, all windows with the same sequence_id
+        are grouped and their class-probability vectors are averaged.
+        """
         self.model.eval()
+
         attn_weights_list = []
         test_probs = []
         test_preds = []
         test_sample_keys = []
         test_labels = []
+        test_metadata = []
         inference_run_times = []
+
         with torch.no_grad():
-            for seq_batch, label_batch, sample_key_batch in test_data_loader:
+            for batch in test_data_loader:
+                if len(batch) == 4:
+                    (
+                        seq_batch,
+                        label_batch,
+                        sample_key_batch,
+                        sample_metadata_batch,
+                    ) = batch
+                elif len(batch) == 3:
+                    (
+                        seq_batch,
+                        label_batch,
+                        sample_key_batch,
+                    ) = batch
+                    sample_metadata_batch = None
+                else:
+                    raise RuntimeError(
+                        "Unexpected test batch structure. "
+                        f"Expected 3 or 4 items, got {len(batch)}."
+                    )
+
                 inference_start_time = time.time()
 
                 probs, preds, _, attn_weights = self.evaluate_batch(
                     seq_batch=seq_batch,
                     label_batch=None,
-                    mode='test',
-                    criterion=None
+                    mode="test",
+                    criterion=None,
                 )
-                if attn_weights is not None and self.store_attention_weights:
-                    attn_weights_list.append(attn_weights)
+
+                if (
+                    attn_weights is not None
+                    and self.store_attention_weights
+                ):
+                    attn_weights_list.append(
+                        attn_weights
+                    )
 
                 inference_end_time = time.time()
 
-                inference_run_times.append(inference_end_time - inference_start_time)
-                test_probs.append(probs)
-                test_preds.append(preds)
-                test_sample_keys.extend(sample_key_batch)
-                test_labels.extend(label_batch.numpy())
+                inference_run_times.append(
+                    inference_end_time
+                    - inference_start_time
+                )
+
+                test_probs.append(
+                    probs.detach().cpu()
+                )
+                test_preds.append(
+                    preds.detach().cpu()
+                )
+                test_sample_keys.extend(
+                    [
+                        (
+                            key.decode()
+                            if isinstance(key, bytes)
+                            else str(key)
+                        )
+                        for key in sample_key_batch
+                    ]
+                )
+                test_labels.extend(
+                    label_batch.cpu().numpy().tolist()
+                )
+
+                if sample_metadata_batch is None:
+                    test_metadata.extend(
+                        [None] * len(label_batch)
+                    )
+                else:
+                    if len(sample_metadata_batch) != len(label_batch):
+                        raise RuntimeError(
+                            "Metadata batch size does not match labels: "
+                            f"{len(sample_metadata_batch)} vs "
+                            f"{len(label_batch)}"
+                        )
+
+                    for metadata in sample_metadata_batch:
+                        if metadata is None:
+                            test_metadata.append(None)
+                        elif isinstance(metadata, dict):
+                            test_metadata.append(
+                                dict(metadata)
+                            )
+                        else:
+                            raise TypeError(
+                                "Expected each metadata item to be dict "
+                                f"or None, got "
+                                f"{type(metadata).__name__}"
+                            )
 
         if len(attn_weights_list) != 0:
-            attn_weights = torch.cat(attn_weights_list).squeeze().cpu()
+            attn_weights = (
+                torch.cat(attn_weights_list)
+                .squeeze()
+                .cpu()
+            )
             attn_weights_dict = {
-                sample_id: attn_weights[i] for i, sample_id in enumerate(test_sample_keys)
+                sample_id: attn_weights[i]
+                for i, sample_id
+                in enumerate(test_sample_keys)
             }
         else:
             attn_weights_dict = None
 
-        if self.problem_type == 'binary':
-            prob_df = pd.DataFrame({'prob': torch.cat(test_probs).cpu().numpy()})
+        all_probs_tensor = torch.cat(
+            test_probs,
+            dim=0,
+        )
+        all_preds_tensor = torch.cat(
+            test_preds,
+            dim=0,
+        )
+
+        if self.problem_type == "binary":
+            prob_df = pd.DataFrame(
+                {
+                    "prob": (
+                        all_probs_tensor
+                        .cpu()
+                        .numpy()
+                    )
+                }
+            )
             prob_df.index = test_sample_keys
-            prob_df.columns = ['prob']
-        elif self.problem_type == 'multiclass':
-            prob_df= pd.DataFrame(torch.cat(test_probs).cpu().numpy())
+            prob_df.columns = ["prob"]
+
+        elif self.problem_type == "multiclass":
+            prob_df = pd.DataFrame(
+                all_probs_tensor.cpu().numpy()
+            )
             prob_df.index = test_sample_keys
-            prob_df.columns = [f'prob_class_{i}' for i in range(prob_df.shape[1])]
+            prob_df.columns = [
+                f"prob_class_{i}"
+                for i in range(
+                    prob_df.shape[1]
+                )
+            ]
         else:
             prob_df = None
 
-        pred_df = pd.DataFrame({'pred': torch.cat(test_preds).cpu().numpy()})
+        pred_df = pd.DataFrame(
+            {
+                "pred": (
+                    all_preds_tensor
+                    .cpu()
+                    .numpy()
+                )
+            }
+        )
         pred_df.index = test_sample_keys
-        pred_df.columns = ['pred']
+        pred_df.columns = ["pred"]
 
-        # --------------------------------------------------------
-        # CLASS-LEVEL TEST DIAGNOSTICS
-        # --------------------------------------------------------
         test_diagnostics = None
+        sequence_diagnostics = None
+        sequence_pred_df = None
+        sequence_prob_df = None
 
-        if self.problem_type == 'multiclass':
-            truths = np.asarray(test_labels, dtype=np.int64)
-            predictions = pred_df['pred'].to_numpy(dtype=np.int64)
-
-            if self.n_classes == len(PENNACTION_ACTION_NAMES):
-                action_names = PENNACTION_ACTION_NAMES
+        if self.problem_type == "multiclass":
+            if (
+                self.n_classes
+                == len(PENNACTION_ACTION_NAMES)
+            ):
+                action_names = (
+                    PENNACTION_ACTION_NAMES
+                )
             else:
                 action_names = [
-                    f'class_{class_idx}'
-                    for class_idx in range(self.n_classes)
+                    f"class_{class_idx}"
+                    for class_idx
+                    in range(self.n_classes)
                 ]
 
-            labels = list(range(self.n_classes))
+            labels = list(
+                range(self.n_classes)
+            )
+
+            # ====================================================
+            # WINDOW-LEVEL DIAGNOSTICS
+            # ====================================================
+            truths = np.asarray(
+                test_labels,
+                dtype=np.int64,
+            )
+            predictions = (
+                pred_df["pred"]
+                .to_numpy(dtype=np.int64)
+            )
 
             test_cm = confusion_matrix(
                 truths,
@@ -494,137 +637,921 @@ class STAMPModelingApproach(ModelingApproach):
                 labels=labels,
             )
 
-            test_report_text = classification_report(
-                truths,
-                predictions,
-                labels=labels,
-                target_names=action_names,
-                digits=4,
-                zero_division=0,
+            test_report_text = (
+                classification_report(
+                    truths,
+                    predictions,
+                    labels=labels,
+                    target_names=action_names,
+                    digits=4,
+                    zero_division=0,
+                )
             )
 
-            test_report_dict = classification_report(
-                truths,
-                predictions,
-                labels=labels,
-                target_names=action_names,
-                output_dict=True,
-                zero_division=0,
+            test_report_dict = (
+                classification_report(
+                    truths,
+                    predictions,
+                    labels=labels,
+                    target_names=action_names,
+                    output_dict=True,
+                    zero_division=0,
+                )
             )
 
             test_accuracy = accuracy_score(
                 truths,
                 predictions,
             )
-
-            test_balanced_accuracy = balanced_accuracy_score(
-                truths,
-                predictions,
+            test_balanced_accuracy = (
+                balanced_accuracy_score(
+                    truths,
+                    predictions,
+                )
             )
-
             test_weighted_f1 = f1_score(
                 truths,
                 predictions,
-                average='weighted',
+                average="weighted",
                 zero_division=0,
             )
-
             test_macro_f1 = f1_score(
                 truths,
                 predictions,
-                average='macro',
+                average="macro",
                 zero_division=0,
             )
-
-            test_cohen_kappa = cohen_kappa_score(
-                truths,
-                predictions,
+            test_cohen_kappa = (
+                cohen_kappa_score(
+                    truths,
+                    predictions,
+                )
             )
 
             print()
-            print('=' * 70)
-            print('STAMP TEST CLASS-LEVEL DIAGNOSTICS')
-            print('=' * 70)
-            print(f'Accuracy:          {test_accuracy:.4f}')
-            print(f'Balanced accuracy: {test_balanced_accuracy:.4f}')
-            print(f'Weighted F1:       {test_weighted_f1:.4f}')
-            print(f'Macro F1:          {test_macro_f1:.4f}')
-            print(f'Cohen kappa:       {test_cohen_kappa:.4f}')
+            print("=" * 70)
+            print(
+                "STAMP WINDOW-LEVEL TEST DIAGNOSTICS"
+            )
+            print("=" * 70)
+            print(
+                f"Accuracy:          "
+                f"{test_accuracy:.4f}"
+            )
+            print(
+                f"Balanced accuracy: "
+                f"{test_balanced_accuracy:.4f}"
+            )
+            print(
+                f"Weighted F1:       "
+                f"{test_weighted_f1:.4f}"
+            )
+            print(
+                f"Macro F1:          "
+                f"{test_macro_f1:.4f}"
+            )
+            print(
+                f"Cohen kappa:       "
+                f"{test_cohen_kappa:.4f}"
+            )
 
             print(
-                '\nTest confusion matrix '
-                '(rows=true, columns=predicted):'
+                "\nWindow-level confusion matrix "
+                "(rows=true, columns=predicted):"
             )
             print(test_cm)
 
-            print('\nTest classification report:\n')
+            print(
+                "\nWindow-level classification "
+                "report:\n"
+            )
             print(test_report_text)
 
-            print('\nPerformance by action class:')
-            print(
-                f"{'Action':22s} "
-                f"{'Precision':>10s} "
-                f"{'Recall':>10s} "
-                f"{'F1':>10s} "
-                f"{'Support':>8s}"
-            )
-            print('-' * 66)
-
-            per_class_rows = []
+            window_per_class_rows = []
 
             for action_name in action_names:
-                values = test_report_dict[action_name]
+                values = test_report_dict[
+                    action_name
+                ]
 
-                row = {
-                    'action_class': action_name,
-                    'precision': float(values['precision']),
-                    'recall': float(values['recall']),
-                    'f1_score': float(values['f1-score']),
-                    'support': int(values['support']),
-                }
-                per_class_rows.append(row)
-
-                print(
-                    f"{action_name:22s} "
-                    f"{row['precision']:10.4f} "
-                    f"{row['recall']:10.4f} "
-                    f"{row['f1_score']:10.4f} "
-                    f"{row['support']:8d}"
+                window_per_class_rows.append(
+                    {
+                        "action_class": (
+                            action_name
+                        ),
+                        "precision": float(
+                            values["precision"]
+                        ),
+                        "recall": float(
+                            values["recall"]
+                        ),
+                        "f1_score": float(
+                            values["f1-score"]
+                        ),
+                        "support": int(
+                            values["support"]
+                        ),
+                    }
                 )
 
             test_diagnostics = {
-                'accuracy': float(test_accuracy),
-                'balanced_accuracy': float(test_balanced_accuracy),
-                'weighted_f1': float(test_weighted_f1),
-                'macro_f1': float(test_macro_f1),
-                'cohen_kappa': float(test_cohen_kappa),
-                'confusion_matrix': test_cm,
-                'classification_report': test_report_dict,
-                'per_class': per_class_rows,
+                "level": "window",
+                "accuracy": float(
+                    test_accuracy
+                ),
+                "balanced_accuracy": float(
+                    test_balanced_accuracy
+                ),
+                "weighted_f1": float(
+                    test_weighted_f1
+                ),
+                "macro_f1": float(
+                    test_macro_f1
+                ),
+                "cohen_kappa": float(
+                    test_cohen_kappa
+                ),
+                "confusion_matrix": test_cm,
+                "classification_report": (
+                    test_report_dict
+                ),
+                "per_class": (
+                    window_per_class_rows
+                ),
             }
 
+            # ====================================================
+            # SEQUENCE-LEVEL DIAGNOSTICS
+            # ====================================================
+            has_metadata = (
+                len(test_metadata)
+                == len(test_labels)
+                and len(test_metadata) > 0
+                and all(
+                    metadata is not None
+                    for metadata in test_metadata
+                )
+            )
+
+            if has_metadata:
+                grouped = defaultdict(
+                    lambda: {
+                        "probabilities": [],
+                        "labels": [],
+                        "nframes": [],
+                        "sample_keys": [],
+                    }
+                )
+
+                all_probs_numpy = (
+                    all_probs_tensor
+                    .cpu()
+                    .numpy()
+                )
+
+                for (
+                    sample_key,
+                    label,
+                    probabilities,
+                    metadata,
+                ) in zip(
+                    test_sample_keys,
+                    test_labels,
+                    all_probs_numpy,
+                    test_metadata,
+                ):
+                    sequence_id = metadata.get(
+                        "sequence_id"
+                    )
+
+                    if sequence_id is None:
+                        if "_w" in sample_key:
+                            sequence_id = (
+                                sample_key.split(
+                                    "_w",
+                                    1,
+                                )[0]
+                            )
+                        else:
+                            raise KeyError(
+                                "Cannot recover sequence_id "
+                                f"for sample {sample_key!r}"
+                            )
+
+                    sequence_id = str(
+                        sequence_id
+                    )
+
+                    nframes = metadata.get(
+                        "nframes"
+                    )
+                    if nframes is None:
+                        nframes = metadata.get(
+                            "source_nframes"
+                        )
+
+                    if nframes is None:
+                        raise KeyError(
+                            "Missing nframes/source_nframes "
+                            f"for sample {sample_key!r}. "
+                            f"Available metadata keys: "
+                            f"{sorted(metadata.keys())}"
+                        )
+
+                    group = grouped[
+                        sequence_id
+                    ]
+                    group[
+                        "probabilities"
+                    ].append(
+                        np.asarray(
+                            probabilities,
+                            dtype=np.float64,
+                        )
+                    )
+                    group["labels"].append(
+                        int(label)
+                    )
+                    group["nframes"].append(
+                        int(nframes)
+                    )
+                    group[
+                        "sample_keys"
+                    ].append(
+                        sample_key
+                    )
+
+                sequence_rows = []
+                sequence_truths = []
+                sequence_predictions = []
+                sequence_probability_rows = []
+
+                for sequence_id in sorted(
+                    grouped
+                ):
+                    group = grouped[
+                        sequence_id
+                    ]
+
+                    unique_labels = sorted(
+                        set(group["labels"])
+                    )
+                    if len(unique_labels) != 1:
+                        raise RuntimeError(
+                            "Inconsistent labels for "
+                            f"sequence {sequence_id}: "
+                            f"{unique_labels}"
+                        )
+
+                    unique_lengths = sorted(
+                        set(group["nframes"])
+                    )
+                    if len(unique_lengths) != 1:
+                        raise RuntimeError(
+                            "Inconsistent sequence lengths "
+                            f"for sequence {sequence_id}: "
+                            f"{unique_lengths}"
+                        )
+
+                    mean_probabilities = (
+                        np.stack(
+                            group[
+                                "probabilities"
+                            ],
+                            axis=0,
+                        )
+                        .mean(axis=0)
+                    )
+
+                    true_label = unique_labels[0]
+                    predicted_label = int(
+                        np.argmax(
+                            mean_probabilities
+                        )
+                    )
+                    sequence_length = (
+                        unique_lengths[0]
+                    )
+
+                    sequence_truths.append(
+                        true_label
+                    )
+                    sequence_predictions.append(
+                        predicted_label
+                    )
+
+                    sequence_rows.append(
+                        {
+                            "sequence_id": (
+                                sequence_id
+                            ),
+                            "true_label": (
+                                true_label
+                            ),
+                            "true_class": (
+                                action_names[
+                                    true_label
+                                ]
+                            ),
+                            "predicted_label": (
+                                predicted_label
+                            ),
+                            "predicted_class": (
+                                action_names[
+                                    predicted_label
+                                ]
+                            ),
+                            "correct": int(
+                                predicted_label
+                                == true_label
+                            ),
+                            "sequence_length": (
+                                sequence_length
+                            ),
+                            "n_windows": len(
+                                group[
+                                    "probabilities"
+                                ]
+                            ),
+                            "confidence": float(
+                                mean_probabilities[
+                                    predicted_label
+                                ]
+                            ),
+                        }
+                    )
+
+                    sequence_probability_rows.append(
+                        mean_probabilities
+                    )
+
+                sequence_truths = np.asarray(
+                    sequence_truths,
+                    dtype=np.int64,
+                )
+                sequence_predictions = (
+                    np.asarray(
+                        sequence_predictions,
+                        dtype=np.int64,
+                    )
+                )
+                sequence_probability_rows = (
+                    np.stack(
+                        sequence_probability_rows,
+                        axis=0,
+                    )
+                )
+
+                sequence_cm = confusion_matrix(
+                    sequence_truths,
+                    sequence_predictions,
+                    labels=labels,
+                )
+
+                sequence_report_text = (
+                    classification_report(
+                        sequence_truths,
+                        sequence_predictions,
+                        labels=labels,
+                        target_names=action_names,
+                        digits=4,
+                        zero_division=0,
+                    )
+                )
+
+                sequence_report_dict = (
+                    classification_report(
+                        sequence_truths,
+                        sequence_predictions,
+                        labels=labels,
+                        target_names=action_names,
+                        output_dict=True,
+                        zero_division=0,
+                    )
+                )
+
+                sequence_accuracy = (
+                    accuracy_score(
+                        sequence_truths,
+                        sequence_predictions,
+                    )
+                )
+                sequence_balanced_accuracy = (
+                    balanced_accuracy_score(
+                        sequence_truths,
+                        sequence_predictions,
+                    )
+                )
+                sequence_weighted_f1 = (
+                    f1_score(
+                        sequence_truths,
+                        sequence_predictions,
+                        average="weighted",
+                        zero_division=0,
+                    )
+                )
+                sequence_macro_f1 = f1_score(
+                    sequence_truths,
+                    sequence_predictions,
+                    average="macro",
+                    zero_division=0,
+                )
+                sequence_cohen_kappa = (
+                    cohen_kappa_score(
+                        sequence_truths,
+                        sequence_predictions,
+                    )
+                )
+
+                print()
+                print("=" * 70)
+                print(
+                    "STAMP SEQUENCE-LEVEL TEST "
+                    "DIAGNOSTICS"
+                )
+                print("=" * 70)
+                print(
+                    f"Sequences:         "
+                    f"{len(sequence_rows)}"
+                )
+                print(
+                    f"Windows:           "
+                    f"{len(test_labels)}"
+                )
+                print(
+                    f"Accuracy:          "
+                    f"{sequence_accuracy:.4f}"
+                )
+                print(
+                    f"Balanced accuracy: "
+                    f"{sequence_balanced_accuracy:.4f}"
+                )
+                print(
+                    f"Weighted F1:       "
+                    f"{sequence_weighted_f1:.4f}"
+                )
+                print(
+                    f"Macro F1:          "
+                    f"{sequence_macro_f1:.4f}"
+                )
+                print(
+                    f"Cohen kappa:       "
+                    f"{sequence_cohen_kappa:.4f}"
+                )
+
+                print(
+                    "\nSequence-level confusion matrix "
+                    "(rows=true, columns=predicted):"
+                )
+                print(sequence_cm)
+
+                print(
+                    "\nSequence-level classification "
+                    "report:\n"
+                )
+                print(sequence_report_text)
+
+                print(
+                    "\nSequence-level performance "
+                    "by action class:"
+                )
+                print(
+                    f"{'Action':22s} "
+                    f"{'Precision':>10s} "
+                    f"{'Recall':>10s} "
+                    f"{'F1':>10s} "
+                    f"{'Support':>8s}"
+                )
+                print("-" * 66)
+
+                sequence_per_class_rows = []
+
+                for action_name in action_names:
+                    values = (
+                        sequence_report_dict[
+                            action_name
+                        ]
+                    )
+
+                    row = {
+                        "action_class": (
+                            action_name
+                        ),
+                        "precision": float(
+                            values["precision"]
+                        ),
+                        "recall": float(
+                            values["recall"]
+                        ),
+                        "f1_score": float(
+                            values["f1-score"]
+                        ),
+                        "support": int(
+                            values["support"]
+                        ),
+                    }
+                    sequence_per_class_rows.append(
+                        row
+                    )
+
+                    print(
+                        f"{action_name:22s} "
+                        f"{row['precision']:10.4f} "
+                        f"{row['recall']:10.4f} "
+                        f"{row['f1_score']:10.4f} "
+                        f"{row['support']:8d}"
+                    )
+
+                # ====================================================
+                # SEQUENCE-LENGTH DIAGNOSTICS
+                # ====================================================
+                sequence_length_df = pd.DataFrame(sequence_rows)
+
+                print()
+                print("=" * 70)
+                print("STAMP SEQUENCE-LENGTH DIAGNOSTICS")
+                print("=" * 70)
+
+                correct_df = sequence_length_df[
+                    sequence_length_df["correct"] == 1
+                ]
+                wrong_df = sequence_length_df[
+                    sequence_length_df["correct"] == 0
+                ]
+
+                print(f"Correct sequences: {len(correct_df)}")
+                print(f"Wrong sequences:   {len(wrong_df)}")
+                print()
+                print(
+                    f"{'Group':18s} "
+                    f"{'Mean':>8s} "
+                    f"{'Median':>8s} "
+                    f"{'Std':>8s} "
+                    f"{'Min':>8s} "
+                    f"{'Max':>8s}"
+                )
+                print("-" * 66)
+
+                length_summary_rows = []
+
+                for group_name, group_df in (
+                    ("All", sequence_length_df),
+                    ("Correct", correct_df),
+                    ("Wrong", wrong_df),
+                ):
+                    lengths = group_df[
+                        "sequence_length"
+                    ].to_numpy(dtype=np.float64)
+
+                    if len(lengths) == 0:
+                        summary_row = {
+                            "group": group_name,
+                            "count": 0,
+                            "mean": np.nan,
+                            "median": np.nan,
+                            "std": np.nan,
+                            "min": np.nan,
+                            "max": np.nan,
+                        }
+                    else:
+                        summary_row = {
+                            "group": group_name,
+                            "count": int(len(lengths)),
+                            "mean": float(np.mean(lengths)),
+                            "median": float(np.median(lengths)),
+                            "std": float(np.std(lengths)),
+                            "min": int(np.min(lengths)),
+                            "max": int(np.max(lengths)),
+                        }
+
+                    length_summary_rows.append(summary_row)
+
+                    if summary_row["count"] == 0:
+                        print(
+                            f"{group_name:18s} "
+                            f"{'n/a':>8s} "
+                            f"{'n/a':>8s} "
+                            f"{'n/a':>8s} "
+                            f"{'n/a':>8s} "
+                            f"{'n/a':>8s}"
+                        )
+                    else:
+                        print(
+                            f"{group_name:18s} "
+                            f"{summary_row['mean']:8.1f} "
+                            f"{summary_row['median']:8.1f} "
+                            f"{summary_row['std']:8.1f} "
+                            f"{summary_row['min']:8d} "
+                            f"{summary_row['max']:8d}"
+                        )
+
+                length_bin_edges = [
+                    0, 32, 64, 96, 128, 160,
+                    192, 256, 512, np.inf,
+                ]
+                length_bin_names = [
+                    "0-31",
+                    "32-63",
+                    "64-95",
+                    "96-127",
+                    "128-159",
+                    "160-191",
+                    "192-255",
+                    "256-511",
+                    "512+",
+                ]
+
+                sequence_length_df["length_bin"] = pd.cut(
+                    sequence_length_df["sequence_length"],
+                    bins=length_bin_edges,
+                    labels=length_bin_names,
+                    include_lowest=True,
+                    right=False,
+                )
+
+                print()
+                print(
+                    "Sequence-level accuracy by original "
+                    "sequence length:"
+                )
+                print(
+                    f"{'Length bin':12s} "
+                    f"{'N':>6s} "
+                    f"{'Accuracy':>10s} "
+                    f"{'Mean len':>10s}"
+                )
+                print("-" * 44)
+
+                length_bin_rows = []
+
+                for length_bin in length_bin_names:
+                    subset = sequence_length_df[
+                        sequence_length_df["length_bin"]
+                        == length_bin
+                    ]
+
+                    if len(subset) == 0:
+                        continue
+
+                    bin_row = {
+                        "length_bin": length_bin,
+                        "support": int(len(subset)),
+                        "accuracy": float(
+                            subset["correct"].mean()
+                        ),
+                        "mean_sequence_length": float(
+                            subset["sequence_length"].mean()
+                        ),
+                    }
+                    length_bin_rows.append(bin_row)
+
+                    print(
+                        f"{length_bin:12s} "
+                        f"{bin_row['support']:6d} "
+                        f"{bin_row['accuracy']:10.4f} "
+                        f"{bin_row['mean_sequence_length']:10.1f}"
+                    )
+
+                print()
+                print(
+                    "Sequence length and accuracy "
+                    "by action class:"
+                )
+                print(
+                    f"{'Action':22s} "
+                    f"{'N':>5s} "
+                    f"{'Accuracy':>10s} "
+                    f"{'Mean len':>10s} "
+                    f"{'Median':>10s} "
+                    f"{'Correct len':>12s} "
+                    f"{'Wrong len':>10s}"
+                )
+                print("-" * 88)
+
+                action_length_rows = []
+
+                for class_idx, action_name in enumerate(action_names):
+                    action_df = sequence_length_df[
+                        sequence_length_df["true_label"]
+                        == class_idx
+                    ]
+                    action_correct_df = action_df[
+                        action_df["correct"] == 1
+                    ]
+                    action_wrong_df = action_df[
+                        action_df["correct"] == 0
+                    ]
+
+                    support = int(len(action_df))
+                    if support == 0:
+                        continue
+
+                    action_row = {
+                        "action_class": action_name,
+                        "support": support,
+                        "accuracy": float(
+                            action_df["correct"].mean()
+                        ),
+                        "mean_sequence_length": float(
+                            action_df["sequence_length"].mean()
+                        ),
+                        "median_sequence_length": float(
+                            action_df["sequence_length"].median()
+                        ),
+                        "correct_mean_length": (
+                            float(
+                                action_correct_df[
+                                    "sequence_length"
+                                ].mean()
+                            )
+                            if len(action_correct_df) > 0
+                            else np.nan
+                        ),
+                        "incorrect_mean_length": (
+                            float(
+                                action_wrong_df[
+                                    "sequence_length"
+                                ].mean()
+                            )
+                            if len(action_wrong_df) > 0
+                            else np.nan
+                        ),
+                    }
+                    action_length_rows.append(action_row)
+
+                    correct_len_text = (
+                        f"{action_row['correct_mean_length']:.1f}"
+                        if not np.isnan(
+                            action_row["correct_mean_length"]
+                        )
+                        else "n/a"
+                    )
+                    wrong_len_text = (
+                        f"{action_row['incorrect_mean_length']:.1f}"
+                        if not np.isnan(
+                            action_row["incorrect_mean_length"]
+                        )
+                        else "n/a"
+                    )
+
+                    print(
+                        f"{action_name:22s} "
+                        f"{support:5d} "
+                        f"{action_row['accuracy']:10.4f} "
+                        f"{action_row['mean_sequence_length']:10.1f} "
+                        f"{action_row['median_sequence_length']:10.1f} "
+                        f"{correct_len_text:>12s} "
+                        f"{wrong_len_text:>10s}"
+                    )
+
+                sequence_pred_df = (
+                    sequence_length_df
+                    .set_index("sequence_id")
+                )
+
+                sequence_prob_df = pd.DataFrame(
+                    sequence_probability_rows,
+                    index=sequence_pred_df.index,
+                    columns=[
+                        f"prob_class_{i}"
+                        for i in range(
+                            self.n_classes
+                        )
+                    ],
+                )
+
+                sequence_diagnostics = {
+                    "level": "sequence",
+                    "aggregation": (
+                        "mean_window_probabilities"
+                    ),
+                    "n_sequences": int(
+                        len(sequence_rows)
+                    ),
+                    "n_windows": int(
+                        len(test_labels)
+                    ),
+                    "accuracy": float(
+                        sequence_accuracy
+                    ),
+                    "balanced_accuracy": float(
+                        sequence_balanced_accuracy
+                    ),
+                    "weighted_f1": float(
+                        sequence_weighted_f1
+                    ),
+                    "macro_f1": float(
+                        sequence_macro_f1
+                    ),
+                    "cohen_kappa": float(
+                        sequence_cohen_kappa
+                    ),
+                    "confusion_matrix": (
+                        sequence_cm
+                    ),
+                    "classification_report": (
+                        sequence_report_dict
+                    ),
+                    "per_class": (
+                        sequence_per_class_rows
+                    ),
+                    "sequence_predictions": (
+                        sequence_pred_df
+                    ),
+                    "sequence_probabilities": (
+                        sequence_prob_df
+                    ),
+                    "length_summary": (
+                        length_summary_rows
+                    ),
+                    "length_bins": (
+                        length_bin_rows
+                    ),
+                    "action_length_diagnostics": (
+                        action_length_rows
+                    ),
+                }
+
+            else:
+                print()
+                print(
+                    "WARNING: sequence-level diagnostics "
+                    "were skipped because complete test "
+                    "metadata was not provided."
+                )
+
         extra_info = {
-            'best_epoch': self.early_stopping.best_epoch if self.use_early_stopping else None,
-            'train_main_losses': self.train_main_losses,
-            'train_balanced_acc_list': self.train_balanced_acc_list,
-            'train_roc_auc_list': self.train_roc_auc_list,
-            'train_pr_auc_list': self.train_pr_auc_list,
-            'train_cohen_kappa_list': self.train_cohen_kappa_list,
-            'train_weighted_f1_list': self.train_weighted_f1_list,
-            'train_cm_list': self.train_cm_list,
-            'val_main_losses': self.val_main_losses,
-            'val_balanced_acc_list': self.val_balanced_acc_list,
-            'val_roc_auc_list': self.val_roc_auc_list,
-            'val_pr_auc_list': self.val_pr_auc_list,
-            'val_cohen_kappa_list': self.val_cohen_kappa_list,
-            'val_weighted_f1_list': self.val_weighted_f1_list,
-            'val_cm_list': self.val_cm_list,
-            'attn_weights': attn_weights_dict,
-            'prob_df': prob_df,
-            'test_labels': test_labels,
-            'test_diagnostics': test_diagnostics,
-            'epoch_run_times': self.epoch_run_times,
-            'inference_run_times': inference_run_times
+            "best_epoch": (
+                self.early_stopping.best_epoch
+                if self.use_early_stopping
+                else None
+            ),
+            "train_main_losses": (
+                self.train_main_losses
+            ),
+            "train_balanced_acc_list": (
+                self.train_balanced_acc_list
+            ),
+            "train_roc_auc_list": (
+                self.train_roc_auc_list
+            ),
+            "train_pr_auc_list": (
+                self.train_pr_auc_list
+            ),
+            "train_cohen_kappa_list": (
+                self.train_cohen_kappa_list
+            ),
+            "train_weighted_f1_list": (
+                self.train_weighted_f1_list
+            ),
+            "train_cm_list": (
+                self.train_cm_list
+            ),
+            "val_main_losses": (
+                self.val_main_losses
+            ),
+            "val_balanced_acc_list": (
+                self.val_balanced_acc_list
+            ),
+            "val_roc_auc_list": (
+                self.val_roc_auc_list
+            ),
+            "val_pr_auc_list": (
+                self.val_pr_auc_list
+            ),
+            "val_cohen_kappa_list": (
+                self.val_cohen_kappa_list
+            ),
+            "val_weighted_f1_list": (
+                self.val_weighted_f1_list
+            ),
+            "val_cm_list": (
+                self.val_cm_list
+            ),
+            "attn_weights": (
+                attn_weights_dict
+            ),
+            "prob_df": prob_df,
+            "test_labels": test_labels,
+            "test_metadata": test_metadata,
+            "test_diagnostics": (
+                test_diagnostics
+            ),
+            "sequence_diagnostics": (
+                sequence_diagnostics
+            ),
+            "sequence_pred_df": (
+                sequence_pred_df
+            ),
+            "sequence_prob_df": (
+                sequence_prob_df
+            ),
+            "epoch_run_times": (
+                self.epoch_run_times
+            ),
+            "inference_run_times": (
+                inference_run_times
+            ),
         }
 
         return pred_df, extra_info

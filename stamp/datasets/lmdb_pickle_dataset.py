@@ -89,19 +89,67 @@ class CustomLMDBPickleDataset(Dataset):
 
     def __getitem__(self, idx):
         key = self.keys[idx]
+
         with self.db.begin(write=False) as txn:
-            pair = pickle.loads(txn.get(key.encode()))
+            pair_bytes = txn.get(key.encode())
+
+        if pair_bytes is None:
+            raise KeyError(
+                f"Sample key {key!r} was not found in LMDB."
+            )
+
+        pair = pickle.loads(pair_bytes)
+
+        if 'sample' not in pair or 'label' not in pair:
+            raise KeyError(
+                f"Sample {key!r} must contain 'sample' and 'label'. "
+                f"Available keys: {sorted(pair.keys())}"
+            )
+
         data = pair['sample']
         label = pair['label']
-
         sample_key = key
 
-        return data/100, label, sample_key
+        original_metadata = pair.get('meta', {})
+        if original_metadata is None:
+            original_metadata = {}
+
+        if not isinstance(original_metadata, dict):
+            raise TypeError(
+                f"Sample {key!r} has non-dict metadata of type "
+                f"{type(original_metadata).__name__}."
+            )
+
+        original_metadata = dict(original_metadata)
+        original_metadata.setdefault(
+            'sample_key',
+            sample_key,
+        )
+        original_metadata.setdefault(
+            'label',
+            int(label),
+        )
+
+        return (
+            data / 100,
+            label,
+            sample_key,
+            original_metadata,
+        )
 
     def collate(self, batch, embedding_model_name=None):
-        x_data = np.array([x[0] for x in batch]) # Shape: (batch_size, n_spatial_channels, n_temporal_channels, orig_seq_len)
-        y_label = np.array([x[1] for x in batch]) # Shape: (batch_size,)
-        sample_keys = [x[2] for x in batch] # List of sample keys
+        x_data = np.array(
+            [x[0] for x in batch]
+        )
+        y_label = np.array(
+            [x[1] for x in batch]
+        )
+        sample_keys = [
+            x[2] for x in batch
+        ]
+        sample_metadata = [
+            x[3] for x in batch
+        ]
 
         # print(f'x_data shape: {x_data.shape}')
         # print(f'y_label shape: {y_label.shape}')
@@ -131,8 +179,13 @@ class CustomLMDBPickleDataset(Dataset):
                             assert np.all(orig[i, j, k, :] == x_data[i * n_spatial_channels * n_temporal_channels + j * n_temporal_channels + k, :]), f"Mismatch at {i}, {j}, {k}"
 
         trial_metadata = self._create_metadata_vectorized(
-                batch_size, n_spatial_channels, n_temporal_channels, sample_keys, y_label
-            )
+            batch_size=batch_size,
+            n_spatial_channels=n_spatial_channels,
+            n_temporal_channels=n_temporal_channels,
+            sample_keys=sample_keys,
+            y_label=y_label,
+            sample_metadata=sample_metadata,
+        )
 
         if embedding_model_name and 'chronos' in embedding_model_name.lower():
             # Squeeze dim 1 for Chronos models
@@ -145,31 +198,117 @@ class CustomLMDBPickleDataset(Dataset):
 
         return to_tensor(x_data), to_tensor(y_label).long(), trial_metadata
 
-    def _create_metadata_vectorized(self, batch_size, n_spatial_channels, n_temporal_channels, sample_keys, y_label):
-        """Vectorized metadata creation to avoid nested loops"""
-        total_elements = batch_size * n_spatial_channels * n_temporal_channels
+    def _create_metadata_vectorized(
+        self,
+        batch_size,
+        n_spatial_channels,
+        n_temporal_channels,
+        sample_keys,
+        y_label,
+        sample_metadata,
+    ):
+        """
+        Replicate each original window's metadata for every flattened
+        spatial/temporal series while preserving the complete raw-LMDB
+        metadata dictionary.
 
-        # Create arrays for indexing
-        batch_indices = np.repeat(np.arange(batch_size), n_spatial_channels * n_temporal_channels)
-        spatial_indices = np.tile(np.repeat(np.arange(n_spatial_channels), n_temporal_channels), batch_size)
-        temporal_indices = np.tile(np.arange(n_temporal_channels), batch_size * n_spatial_channels)
+        For one original sample, this produces:
+            n_spatial_channels * n_temporal_channels
+        metadata dictionaries in the same order as x_data.reshape(...).
+        """
+        expected_batch_size = len(sample_keys)
 
-        # Map trial_ids and y_label using batch_indices
-        sample_keys_arr = np.array(sample_keys, dtype=object)[batch_indices]
-        y_label_arr = np.array(y_label)[batch_indices]
+        if batch_size != expected_batch_size:
+            raise RuntimeError(
+                "Batch size does not match sample-key count: "
+                f"{batch_size} vs {expected_batch_size}"
+            )
 
-        # Return as structured array instead of list of dicts
-        metadata = np.rec.fromarrays(
-            [sample_keys_arr, batch_indices, spatial_indices, temporal_indices, y_label_arr, np.arange(total_elements)],
-            names=['sample_key', 'batch_idx', 'spatial_channel', 'temporal_channel', 'original_label', 'reshaped_idx']
+        if len(sample_metadata) != batch_size:
+            raise RuntimeError(
+                "Metadata count does not match batch size: "
+                f"{len(sample_metadata)} vs {batch_size}"
+            )
+
+        metadata = []
+        reshaped_idx = 0
+
+        for batch_idx in range(batch_size):
+            base_metadata = sample_metadata[batch_idx]
+
+            if base_metadata is None:
+                base_metadata = {}
+
+            if not isinstance(base_metadata, dict):
+                raise TypeError(
+                    "Expected original metadata to be a dictionary, "
+                    f"got {type(base_metadata).__name__} "
+                    f"for batch index {batch_idx}."
+                )
+
+            for spatial_channel in range(
+                n_spatial_channels
+            ):
+                for temporal_channel in range(
+                    n_temporal_channels
+                ):
+                    series_metadata = dict(
+                        base_metadata
+                    )
+
+                    series_metadata.update(
+                        {
+                            'sample_key': str(
+                                sample_keys[batch_idx]
+                            ),
+                            'batch_idx': int(
+                                batch_idx
+                            ),
+                            'spatial_channel': int(
+                                spatial_channel
+                            ),
+                            'temporal_channel': int(
+                                temporal_channel
+                            ),
+                            'original_label': int(
+                                y_label[batch_idx]
+                            ),
+                            'reshaped_idx': int(
+                                reshaped_idx
+                            ),
+                        }
+                    )
+
+                    metadata.append(
+                        series_metadata
+                    )
+                    reshaped_idx += 1
+
+        expected_total = (
+            batch_size
+            * n_spatial_channels
+            * n_temporal_channels
         )
 
-        metadata = pd.DataFrame.from_records(metadata).to_dict(orient='records')
+        if len(metadata) != expected_total:
+            raise RuntimeError(
+                "Unexpected metadata length after flattening: "
+                f"{len(metadata)} vs {expected_total}"
+            )
 
         return metadata
 
-    def collate_with_mask(dataset, batch, orig_seq_len, embedding_model_name=None):
-        x_data, y_label, trial_metadata = dataset.collate(batch)
+
+    def collate_with_mask(
+        dataset,
+        batch,
+        orig_seq_len,
+        embedding_model_name=None,
+    ):
+        x_data, y_label, trial_metadata = dataset.collate(
+            batch,
+            embedding_model_name=embedding_model_name,
+        )
         # X_data shape: (batch_size, 1, seq_len)
         # y_label shape: (batch_size,)
         
