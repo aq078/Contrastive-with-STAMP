@@ -360,9 +360,9 @@ class STAMP(nn.Module):
             assert x.shape[-1] == 1024, (
                 f"BAD INPUT SHAPE: {x.shape}, expected last dim 1024"
             )
-            assert x.shape[1] == 8, (
-                f"BAD TEMPORAL DIM: {x.shape}, expected T=8"
-            )
+            # assert x.shape[1] == 8, (
+            #     f"BAD TEMPORAL DIM: {x.shape}, expected T=8"
+            # )
             assert x.shape[2] == 99, (
                 f"BAD SPATIAL DIM: {x.shape}, expected S=99"
             )

@@ -409,7 +409,7 @@ def embed_single_gpu_worker(data_loader, batch_size, n_temporal_channels, n_spat
                     n_patches,
                     embedding_dim,
                 ).contiguous()
-                assert embeddings.shape[1:] == (99, 8, 1024), (
+                assert embeddings.shape[1:] == (99, 12, 1024), (
                     f"Unexpected L64 embedding shape: {embeddings.shape}"
                 )
                 # print("MOMENT embeddings written to LMDB:", embeddings.shape)

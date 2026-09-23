@@ -69,18 +69,18 @@
                 "name": "EarlyStopping",
                 "patience": 15,
                 "min_delta": 0.001,
-                "tmp_dir": "temporary/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear",
+                "tmp_dir": "temporary/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0_stage2_linear",
                 "monitor_metric": "val_balanced_acc"
             },
             "checkpointing_params": null,
             "problem_type": "multiclass",
             "n_classes": 2,
             "device": "cuda:0",
-            "n_temporal_channels": 8,
+            "n_temporal_channels": 12,
             "n_spatial_channels": 99,
             "load_pretrained_ckpt": "checkpoints/sere/MOMENT-1-large_nrs5_ne80_D128_ip-full-dr0.3_pe-basicNST_gmlp-tcriss_cross-nl8-dff256-dr0.3_cmconcat_nonrec_mhap-A4-dr0.3-Q8-qcweighted_sum_lres0.1_ls0.1gcT_inorm_tdr1.0/supcon/best_seed{seed}.pth",
             "freeze_backbone": false,
-            "n_samples": 2971
+            "n_samples": 1672
         }
     },
     "embeddings_dir": "embeddings/sere/MOMENT-1-large",
@@ -91,30 +91,30 @@
         759,
         281
     ],
-    "commit_hash": "a874008518100c318c4da42d16fdbad41898f168",
-    "run_date": "2026-09-08 11:44:53",
+    "commit_hash": "9218279d6c9100fc9cf509f4e48c9ef04930eb6d",
+    "run_date": "2026-09-17 03:11:10",
     "gpu_info": [
         {
             "gpu_id": 0,
-            "name": "NVIDIA RTX A5000",
-            "memory_gb": 23.5
+            "name": "NVIDIA GeForce RTX 2080 Ti",
+            "memory_gb": 10.6
         }
     ],
     "training_run_time_per_seed": {
-        "654": 100.63061618804932,
-        "114": 71.23753023147583,
-        "25": 106.30029845237732,
-        "759": 98.65013933181763,
-        "281": 86.43663907051086
+        "654": 81.39342522621155,
+        "114": 87.01631712913513,
+        "25": 91.45272278785706,
+        "759": 136.06708002090454,
+        "281": 142.191330909729
     },
     "testing_run_time_per_seed": {
-        "654": 1.6846766471862793,
-        "114": 1.6647515296936035,
-        "25": 1.676978588104248,
-        "759": 1.6775410175323486,
-        "281": 1.6760330200195312
+        "654": 2.1336445808410645,
+        "114": 2.0174720287323,
+        "25": 1.950273036956787,
+        "759": 2.030186891555786,
+        "281": 1.9529929161071777
     },
-    "main_run_time": 474.10815954208374,
-    "total_parameters": 895778,
-    "total_flops": 20321148928
+    "main_run_time": 552.2035753726959,
+    "total_parameters": 947650,
+    "total_flops": 30637170688
 }
