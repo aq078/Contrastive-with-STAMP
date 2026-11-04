@@ -1,0 +1,209 @@
+{
+  "protocol": "sere-full-trial-patient-5fold-evaluation-v1",
+  "reduction": "none",
+  "source_root": "/zfsauton/scratch/anqix/stamp/dataset/SERE_dataset_SHAREABLE_skeletons",
+  "output_dir": "/zfsauton/scratch/anqix/stamp/experiments/sere_full_patient_5fold_v1",
+  "cv": {
+    "n_folds": 5,
+    "seed": 42
+  },
+  "moment_model_dir": "/zfsauton/scratch/anqix/stamp/moment/MOMENT-1-large",
+  "exercises": [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5"
+  ],
+  "window_lengths": [
+    16,
+    32,
+    64,
+    80,
+    96,
+    128
+  ],
+  "stride": 16,
+  "seeds": [
+    654
+  ],
+  "embedding_batch_size": 4,
+  "recipes": {
+    "baseline": {
+      "D": 128,
+      "encoder_aggregation": "attention_pooling",
+      "use_batch_norm": false,
+      "use_instance_norm": true,
+      "initial_proj_params": {
+        "type": "full",
+        "dropout_rate": 0.3
+      },
+      "final_classifier_params": null,
+      "pe_params": {
+        "pe_type": "basic",
+        "use_token_positional_embeddings": true,
+        "use_spatial_positional_embeddings": true,
+        "use_temporal_positional_embeddings": true
+      },
+      "transformer_params": null,
+      "gated_mlp_params": {
+        "type": "criss_cross",
+        "n_layers": 8,
+        "dim_feedforward": 256,
+        "dropout_rate": 0.3,
+        "combination_mode": "concat",
+        "recurrent": false
+      },
+      "mhap_params": {
+        "A": 4,
+        "dropout_rate": 0.3,
+        "n_queries_per_head": 8,
+        "query_combination": "weighted_sum",
+        "lambda_for_residual": 0.1
+      },
+      "n_epochs": 65,
+      "train_batch_size": 64,
+      "test_batch_size": 64,
+      "lr_params": {
+        "use_scheduler": true,
+        "scheduler_type": "one_cycle",
+        "initial_lr": 5e-05,
+        "max_lr": 0.0003
+      },
+      "optimizer_params": {
+        "optimizer_name": "adamw",
+        "betas": [
+          0.9,
+          0.999
+        ],
+        "eps": 1e-08,
+        "weight_decay": 0.05
+      },
+      "use_gradient_clipping": true,
+      "label_smoothing": 0.1,
+      "class_weighting": "balanced"
+    },
+    "supcon_stage1": {
+      "D": 128,
+      "encoder_aggregation": "attention_pooling",
+      "use_batch_norm": false,
+      "use_instance_norm": true,
+      "initial_proj_params": {
+        "type": "full",
+        "dropout_rate": 0.3
+      },
+      "final_classifier_params": null,
+      "pe_params": {
+        "pe_type": "basic",
+        "use_token_positional_embeddings": true,
+        "use_spatial_positional_embeddings": true,
+        "use_temporal_positional_embeddings": true
+      },
+      "transformer_params": null,
+      "gated_mlp_params": {
+        "type": "criss_cross",
+        "n_layers": 8,
+        "dim_feedforward": 256,
+        "dropout_rate": 0.3,
+        "combination_mode": "concat",
+        "recurrent": false
+      },
+      "mhap_params": {
+        "A": 4,
+        "dropout_rate": 0.3,
+        "n_queries_per_head": 8,
+        "query_combination": "weighted_sum",
+        "lambda_for_residual": 0.1
+      },
+      "n_epochs": 80,
+      "train_batch_size": 32,
+      "test_batch_size": 32,
+      "lr_params": {
+        "use_scheduler": true,
+        "scheduler_type": "one_cycle",
+        "initial_lr": 0.00012,
+        "max_lr": 0.001
+      },
+      "optimizer_params": {
+        "optimizer_name": "adamw",
+        "betas": [
+          0.9,
+          0.999
+        ],
+        "eps": 1e-08,
+        "weight_decay": 0.05
+      },
+      "use_gradient_clipping": true,
+      "supcon_params": {
+        "temperature": 0.07,
+        "proj_head": {
+          "proj_dim": 128,
+          "proj_hidden_dim": 128,
+          "proj_dropout": 0.1
+        },
+        "train_classifier": false
+      },
+      "aug_params": {
+        "jitter_std": 0.02,
+        "drop_prob": 0.05,
+        "time_mask_prob": 0.05
+      }
+    },
+    "supcon_stage2": {
+      "D": 128,
+      "encoder_aggregation": "attention_pooling",
+      "use_batch_norm": false,
+      "use_instance_norm": true,
+      "initial_proj_params": {
+        "type": "full",
+        "dropout_rate": 0.3
+      },
+      "final_classifier_params": null,
+      "pe_params": {
+        "pe_type": "basic",
+        "use_token_positional_embeddings": true,
+        "use_spatial_positional_embeddings": true,
+        "use_temporal_positional_embeddings": true
+      },
+      "transformer_params": null,
+      "gated_mlp_params": {
+        "type": "criss_cross",
+        "n_layers": 8,
+        "dim_feedforward": 256,
+        "dropout_rate": 0.3,
+        "combination_mode": "concat",
+        "recurrent": false
+      },
+      "mhap_params": {
+        "A": 4,
+        "dropout_rate": 0.3,
+        "n_queries_per_head": 8,
+        "query_combination": "weighted_sum",
+        "lambda_for_residual": 0.1
+      },
+      "n_epochs": 30,
+      "train_batch_size": 32,
+      "test_batch_size": 32,
+      "lr_params": {
+        "use_scheduler": true,
+        "scheduler_type": "one_cycle",
+        "initial_lr": 1e-05,
+        "max_lr": 0.0003
+      },
+      "optimizer_params": {
+        "optimizer_name": "adamw",
+        "betas": [
+          0.9,
+          0.999
+        ],
+        "eps": 1e-08,
+        "weight_decay": 0.05
+      },
+      "use_gradient_clipping": true,
+      "label_smoothing": 0.1,
+      "freeze_backbone": true,
+      "class_weighting": "balanced"
+    }
+  },
+  "metric_aggregation": "class_first_patient_recall"
+}

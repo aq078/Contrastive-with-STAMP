@@ -13,6 +13,8 @@ stamp.egg-info/**
 #IDE
 .vscode/**
 dataset/
-moment/
+/moment
 embeddings/
 temporary/
+experiments/sere_temporal_lopo_v1/
+/experiments/sere_temporal_5fold_v2

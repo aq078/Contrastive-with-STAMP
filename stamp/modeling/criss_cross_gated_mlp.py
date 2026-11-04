@@ -40,7 +40,7 @@ class CrissCrossGatedMLPBlock(nn.Module):
         
         self.dropout = nn.Dropout(dropout_rate) if dropout_rate > 0 else nn.Identity()
 
-    def forward(self, x):
+    def forward(self, x, valid_mask=None):
         # x shape: (B, T, S, D)
         shortcut = x
         x = self.norm(x)  # (B, T, S, D)
@@ -48,8 +48,8 @@ class CrissCrossGatedMLPBlock(nn.Module):
         x = self.gelu(x)  # (B, T, S, dim_ff)
         
         # Apply both SGUs to the same input
-        temporal_out = self.sgu_temporal(x)  # (B, T, S, dim_ff//2)
-        spatial_out = self.sgu_spatial(x)   # (B, T, S, dim_ff//2)
+        temporal_out = self.sgu_temporal(x, valid_mask=valid_mask)
+        spatial_out = self.sgu_spatial(x, valid_mask=valid_mask)
         
         # Combine outputs from both mixing operations
         # Combine outputs based on mode
@@ -62,7 +62,10 @@ class CrissCrossGatedMLPBlock(nn.Module):
         
         x = self.proj_2(x)  # (B, T, S, D)
         x = self.dropout(x)
-        return x + shortcut
+        result = x + shortcut
+        if valid_mask is not None:
+            result = result.masked_fill(~valid_mask.unsqueeze(-1), 0)
+        return result
 
 class SpatialGatingUnit(nn.Module):
     """
@@ -84,10 +87,14 @@ class SpatialGatingUnit(nn.Module):
         # Initialize bias to 1 as mentioned in paper
         nn.init.constant_(self.spatial_proj.bias, 1.0)
     
-    def forward(self, x):
+    def forward(self, x, valid_mask=None):
         # x shape: (B, T, S, dim_ff)
         u, v = x.chunk(2, dim=-1)  # Split along embedding dimension: (B, T, S, dim_ff//2)
         v = self.norm(v)  # Normalize v along embedding dimension
+        # Mask after affine layers: their biases can otherwise turn padding into
+        # a source of information for valid temporal/spatial positions.
+        if valid_mask is not None:
+            v = v.masked_fill(~valid_mask.unsqueeze(-1), 0)
         
         if self.axis == 'temporal':
             # Mix across temporal dimension (time)

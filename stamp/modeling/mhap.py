@@ -76,8 +76,15 @@ class MultiHeadAttentionPooling(nn.Module):
         if self.out_proj.bias is not None:
             nn.init.zeros_(self.out_proj.bias)
 
-    def forward(self, out, B):
-        residual = out.mean(dim=1) if self.lambda_for_residual > 0 else None  # For residual connection
+    def forward(self, out, B, valid_mask=None):
+        if valid_mask is not None:
+            if valid_mask.shape != out.shape[:2] or not valid_mask.any(dim=1).all():
+                raise ValueError("Each sample must have at least one valid pooling token")
+            out = out.masked_fill(~valid_mask.unsqueeze(-1), 0)
+            mean_repr = out.sum(dim=1) / valid_mask.sum(dim=1, keepdim=True)
+        else:
+            mean_repr = out.mean(dim=1)
+        residual = mean_repr if self.lambda_for_residual > 0 else None
 
         # 1. Project token outputs with dropout for regularization
         projections = []
@@ -92,6 +99,8 @@ class MultiHeadAttentionPooling(nn.Module):
         queries = self.Q.unsqueeze(0).unsqueeze(3)  # Shape: (1, A, Q, 1, d)
         projections_exp = projections.unsqueeze(2)   # Shape: (B, A, 1, N, d)
         scores = (projections_exp * queries).sum(dim=-1) / math.sqrt(self.d) # Shape: (B, A, Q, N)
+        if valid_mask is not None:
+            scores = scores.masked_fill(~valid_mask[:, None, None, :], float('-inf'))
 
         # 3. Normalize attention scores using softmax
         attn_weights = self.softmax(scores)  # Shape: (B, A, Q, N)
@@ -147,7 +156,6 @@ class MultiHeadAttentionPooling(nn.Module):
 
         elif self.query_combination == 'learned_weights':
             # Learn input-dependent weights for queries
-            mean_repr = out.mean(dim=1)  # Shape: (B, D)
             query_weights = self.query_weight_net(mean_repr)  # Shape: (B, A * K)
             query_weights = query_weights.view(B, self.A, self.K)  # Shape: (B, A, K)
 

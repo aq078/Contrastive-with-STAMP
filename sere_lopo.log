@@ -1,0 +1,5 @@
+/zfsauton2/home/anqix/miniconda3/envs/stamp2/lib/python3.10/site-packages/transformers/utils/generic.py:311: FutureWarning: `torch.utils._pytree._register_pytree_node` is deprecated. Please use `torch.utils._pytree.register_pytree_node` instead.
+  torch.utils._pytree._register_pytree_node(
+Loading weights from local directory
+/zfsauton2/home/anqix/miniconda3/envs/stamp2/lib/python3.10/site-packages/momentfm/models/moment.py:174: UserWarning: Only reconstruction head is pre-trained. Classification and forecasting heads must be fine-tuned.
+  warnings.warn("Only reconstruction head is pre-trained. Classification and forecasting heads must be fine-tuned.")

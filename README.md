@@ -88,6 +88,11 @@ Before running, update the relevant parameters in the script as needed. Embeddin
 
 ## 🧪 Experiments
 
+For SERE temporal 80/20 splitting, patient-equal five-fold selection, and final
+evaluation of baseline STAMP and STAMP+SupCon, use the
+[SERE evaluation workflow](docs/sere_temporal_lopo.md). Its entry point is
+`scripts/run_sere_lopo.py`; it does not reuse the historical fixed-split runner.
+
 ### 🔧 Creating Experiment Configurations
 
 Experiments are defined through configuration files specifying datasets, model parameters, and hyperparameters.  

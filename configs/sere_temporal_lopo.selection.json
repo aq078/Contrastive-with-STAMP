@@ -1,0 +1,7 @@
+{
+  "window_lengths": [16, 32, 64, 80, 96, 128],
+  "allow_window_expansion": true,
+  "allow_new_window_lengths": true,
+  "selection_seeds": [654],
+  "reason": "User added L128 before final fitting or testing; evaluate 16, 32, 64, 80, 96, and 128 using seed 654 while preserving completed runs."
+}

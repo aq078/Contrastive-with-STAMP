@@ -1,0 +1,14 @@
+{
+  "window_lengths": [
+    16,
+    32,
+    64,
+    80,
+    96,
+    128
+  ],
+  "selection_seeds": [
+    654
+  ],
+  "reason": "Separate class-first scoring and class-weighted classifier experiment; all windows retained."
+}

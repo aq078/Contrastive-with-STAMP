@@ -330,6 +330,7 @@ class STAMP(nn.Module):
         return_attention: bool = False,
         return_features: bool = False,
         return_proj: bool = False,
+        valid_mask=None,
     ):
         """
         Args:
@@ -351,23 +352,34 @@ class STAMP(nn.Module):
         # x shape: (B, T, S, input_dim) where the batch dimension represents patients
         B, T, S, input_dim = x.shape
         N = T * S
+        # Optional (B,T,S) mask used by the temporal SERE protocol. Legacy
+        # callers without masks retain their existing forward path.
+        token_mask = None
+        if valid_mask is not None:
+            valid_mask = valid_mask.to(device=x.device, dtype=torch.bool)
+            if valid_mask.shape != (B, T, S) or not valid_mask.flatten(1).any(1).all():
+                raise ValueError("valid_mask must be (B,T,S) with nonempty samples")
+            if self.use_batch_norm or self.transformer_params is not None:
+                raise ValueError("Masked STAMP currently supports instance/no norm and GMLP")
+            if self.gated_mlp_params and self.gated_mlp_params['type'] != 'criss_cross':
+                raise ValueError("Masked STAMP requires criss_cross GMLP")
+            token_mask = valid_mask.reshape(B, N)
+            x = x.masked_fill(~valid_mask.unsqueeze(-1), 0)
 
         # Normalization
         if self.use_batch_norm:
             x = self.apply_batch_norm(x, B, T, S, input_dim)
         elif self.use_instance_norm:
-            # print("DEBUG x before instance norm:", x.shape)
-            assert x.shape[-1] == 1024, (
-                f"BAD INPUT SHAPE: {x.shape}, expected last dim 1024"
-            )
-            # assert x.shape[1] == 8, (
-            #     f"BAD TEMPORAL DIM: {x.shape}, expected T=8"
-            # )
-            assert x.shape[2] == 99, (
-                f"BAD SPATIAL DIM: {x.shape}, expected S=99"
-            )
-            # print("DEBUG B,T,S,input_dim:", B, T, S, input_dim)
-            x = self.apply_instance_norm(x, B, T, S, input_dim)
+            if valid_mask is None:
+                x = self.apply_instance_norm(x, B, T, S, input_dim)
+            else:
+                weights = valid_mask.unsqueeze(-1).to(x.dtype)
+                count = weights.sum(dim=(1, 2), keepdim=True)
+                mean = (x * weights).sum(dim=(1, 2), keepdim=True) / count
+                variance = ((x - mean).square() * weights).sum(dim=(1, 2), keepdim=True) / count
+                x = (x - mean) * torch.rsqrt(variance + self.data_norm.eps)
+                if self.data_norm.affine:
+                    x = x * self.data_norm.weight + self.data_norm.bias
 
         # Project to model dim D if needed
         if input_dim != self.D:
@@ -380,6 +392,8 @@ class STAMP(nn.Module):
         if self.use_positional_embeddings:
             embeds = self.build_positional_embeddings(x, N, B, T, S)
             tokens = tokens + embeds  # (B, N, D)
+        if token_mask is not None:
+            tokens = tokens.masked_fill(~token_mask.unsqueeze(-1), 0)
 
         # Token-mixing blocks (GMLP)
         if self.gated_mlp_params is not None:
@@ -387,7 +401,7 @@ class STAMP(nn.Module):
                 tokens = tokens.reshape(B, T, S, self.D)  # (B, T, S, D)
 
             for layer in self.gated_mlp:
-                tokens = layer(tokens)
+                tokens = layer(tokens, valid_mask=valid_mask) if valid_mask is not None else layer(tokens)
 
             if self.gated_mlp_params["type"] == "criss_cross":
                 tokens = tokens.reshape(B, N, self.D)  # (B, N, D)
@@ -399,13 +413,16 @@ class STAMP(nn.Module):
         # Aggregation
         attn_weights = None
         if self.encoder_aggregation == "mean_across_tokens":
-            features = tokens.mean(dim=1)  # (B, D)
+            features = (tokens.mean(dim=1) if token_mask is None else
+                        tokens.sum(dim=1) / token_mask.sum(dim=1, keepdim=True))
 
         elif self.encoder_aggregation == "token_prediction_averaging":
             # This path produces class logits directly (token-wise classifier).
             # There is no single pooled feature vector unless you define one.
             token_predictions = self.token_classifier(tokens)  # (B, N, n_classes)
-            logits = token_predictions.mean(dim=1)  # (B, n_classes)
+            logits = (token_predictions.mean(dim=1) if token_mask is None else
+                      token_predictions.masked_fill(~token_mask.unsqueeze(-1), 0).sum(dim=1)
+                      / token_mask.sum(dim=1, keepdim=True))
 
             # For API consistency:
             if return_proj or return_features:
@@ -419,7 +436,7 @@ class STAMP(nn.Module):
             return logits, None
 
         elif self.encoder_aggregation == "attention_pooling":
-            features, attn_weights = self.multi_head_attention_pooling(out=tokens, B=B)  # features: (B, D)
+            features, attn_weights = self.multi_head_attention_pooling(out=tokens, B=B, valid_mask=token_mask)
 
         else:
             raise ValueError(f"Unknown encoder_aggregation method: {self.encoder_aggregation}")
